@@ -1,0 +1,741 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+/* ============================================================================
+   BIOMOV AI - New Design System v3.0
+   Primary: #13ec6d (Neon Green)
+   Background Dark: #102218
+   ============================================================================ */
+
+@theme inline {
+  /* Background Colors */
+  --color-background: #102218;
+  --color-background-light: #f6f8f7;
+  --color-surface: #112218;
+  --color-surface-hover: #1a3326;
+  --color-surface-card: #193324;
+  
+  /* Text Colors */
+  --color-foreground: #ffffff;
+  --color-foreground-muted: #94a3b8;
+  --color-foreground-subtle: #64748b;
+  
+  /* Primary Accent - Neon Green */
+  --color-primary: #13ec6d;
+  --color-primary-foreground: #102218;
+  --color-primary-hover: #11d762;
+  --color-primary-glow: rgba(19, 236, 109, 0.3);
+  
+  /* Secondary */
+  --color-secondary: #92c9a9;
+  
+  /* Accent Blue */
+  --color-accent-blue: #00f0ff;
+  --color-accent-blue-glow: rgba(0, 240, 255, 0.3);
+  
+  /* Warning - Amber */
+  --color-warning: #f59e0b;
+  --color-warning-glow: rgba(245, 158, 11, 0.3);
+  
+  /* Danger - Red */
+  --color-danger: #ef4444;
+  --color-danger-glow: rgba(239, 68, 68, 0.3);
+  
+  /* Success - Green */
+  --color-success: #10b981;
+  --color-success-glow: rgba(16, 185, 129, 0.3);
+  
+  /* Borders & Inputs */
+  --color-border: rgba(255, 255, 255, 0.08);
+  --color-border-light: rgba(255, 255, 255, 0.1);
+  --color-input: #0d1a12;
+  
+  /* Ring focus */
+  --color-ring: #13ec6d;
+  
+  /* Radius */
+  --radius: 0.25rem;
+  --radius-lg: 0.5rem;
+  --radius-xl: 0.75rem;
+  --radius-2xl: 1rem;
+  --radius-full: 9999px;
+  
+  /* Fonts */
+  --font-display: "Space Grotesk", sans-serif;
+  --font-body: "Noto Sans", sans-serif;
+}
+
+:root {
+  /* Background */
+  --background: #f6f8f7;
+  --background-dark: #102218;
+  --surface: #112218;
+  --surface-hover: #1a3326;
+  --surface-card: #193324;
+  
+  /* Foreground */
+  --foreground: #0f172a;
+  --foreground-muted: #64748b;
+  --foreground-subtle: #94a3b8;
+  
+  /* Primary - Neon Green */
+  --primary: #13ec6d;
+  --primary-foreground: #102218;
+  --primary-hover: #11d762;
+  --primary-glow: rgba(19, 236, 109, 0.3);
+  
+  /* Secondary */
+  --secondary: #92c9a9;
+  
+  /* Accent Blue */
+  --accent-blue: #00f0ff;
+  --accent-blue-glow: rgba(0, 240, 255, 0.3);
+  
+  /* Warning */
+  --warning: #f59e0b;
+  
+  /* Danger */
+  --danger: #ef4444;
+  
+  /* Borders */
+  --border: #e2e8f0;
+  --input: #e2e8f0;
+  --ring: #13ec6d;
+}
+
+.dark {
+  --background: #102218;
+  --foreground: #ffffff;
+  --border: rgba(19, 236, 109, 0.2);
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    background-color: var(--background);
+    color: var(--foreground);
+    font-family: var(--font-display);
+    min-height: max(884px, 100dvh);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #102218;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #1a3326;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #13ec6d;
+}
+
+/* Hide scrollbar utility */
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+.hide-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* ============================================================================
+   CAMERA GRID - For Workout/Motion tracking
+   ============================================================================ */
+
+.camera-grid {
+  background-image: 
+    linear-gradient(rgba(19, 236, 109, 0.1) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(19, 236, 109, 0.1) 1px, transparent 1px);
+  background-size: 40px 40px;
+}
+
+/* ============================================================================
+   SKELETON DOT - For motion tracking points
+   ============================================================================ */
+
+.skeleton-dot {
+  box-shadow: 0 0 10px #13ec6d, 0 0 20px #13ec6d;
+}
+
+/* ============================================================================
+   GAUGE ANIMATION - For circular progress
+   ============================================================================ */
+
+@keyframes dash {
+  from {
+    stroke-dashoffset: 283;
+  }
+  to {
+    stroke-dashoffset: 36;
+  }
+}
+
+.gauge-circle {
+  transition: stroke-dashoffset 1.5s ease-out;
+  filter: drop-shadow(0 0 10px rgba(19, 236, 109, 0.5));
+}
+
+/* ============================================================================
+   GLASS PANEL - Frosted glass effect
+   ============================================================================ */
+
+.glass-panel {
+  background: rgba(18, 18, 18, 0.7);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+/* ============================================================================
+   ANIMATIONS
+   ============================================================================ */
+
+@keyframes pulse-glow {
+  0%, 100% {
+    box-shadow: 0 0 10px var(--primary-glow);
+  }
+  50% {
+    box-shadow: 0 0 20px var(--primary-glow), 0 0 30px var(--primary-glow);
+  }
+}
+
+@keyframes float {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+@keyframes shimmer {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+@keyframes gradient-flow {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+@keyframes glow-pulse {
+  0%, 100% {
+    opacity: 0.5;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+@keyframes slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes scale-in {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.animate-pulse-glow {
+  animation: pulse-glow 2s ease-in-out infinite;
+}
+
+.animate-float {
+  animation: float 3s ease-in-out infinite;
+}
+
+.animate-shimmer {
+  animation: shimmer 2s infinite;
+}
+
+.animate-gradient {
+  background-size: 200% 200%;
+  animation: gradient-flow 3s ease infinite;
+}
+
+.animate-glow-pulse {
+  animation: glow-pulse 2s ease-in-out infinite;
+}
+
+.animate-slide-up {
+  animation: slide-up 0.5s ease-out;
+}
+
+.animate-scale-in {
+  animation: scale-in 0.3s ease-out;
+}
+
+/* ============================================================================
+   GLOW EFFECTS
+   ============================================================================ */
+
+.glow-primary {
+  box-shadow: 0 0 10px var(--primary-glow), 0 0 20px var(--primary-glow);
+}
+
+.glow-blue {
+  box-shadow: 0 0 10px var(--accent-blue-glow), 0 0 20px var(--accent-blue-glow);
+}
+
+.glow-warning {
+  box-shadow: 0 0 10px var(--warning-glow), 0 0 20px var(--warning-glow);
+}
+
+.glow-danger {
+  box-shadow: 0 0 10px var(--danger-glow), 0 0 20px var(--danger-glow);
+}
+
+/* ============================================================================
+   GRADIENT BACKGROUNDS
+   ============================================================================ */
+
+.gradient-primary {
+  background: linear-gradient(135deg, #13ec6d 0%, #00f0ff 100%);
+}
+
+.gradient-dark {
+  background: linear-gradient(180deg, #102218 0%, #112218 100%);
+}
+
+.gradient-card {
+  background: linear-gradient(145deg, #193324 0%, #112218 100%);
+}
+
+/* ============================================================================
+   BUTTON STYLES
+   ============================================================================ */
+
+.btn-primary {
+  background: #13ec6d;
+  color: #102218;
+  font-weight: 700;
+  transition: all 0.3s ease;
+  box-shadow: 0 0 15px rgba(19, 236, 109, 0.3);
+}
+
+.btn-primary:hover {
+  background: #11d762;
+  box-shadow: 0 0 25px rgba(19, 236, 109, 0.5);
+}
+
+.btn-secondary {
+  background: #112218;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #ffffff;
+  font-weight: 600;
+  transition: all 0.3s ease;
+}
+
+.btn-secondary:hover {
+  border-color: #13ec6d;
+  color: #13ec6d;
+}
+
+/* ============================================================================
+   CARD STYLES
+   ============================================================================ */
+
+.card-surface {
+  background: #193324;
+  border: 1px solid rgba(19, 236, 109, 0.2);
+  border-radius: 1rem;
+}
+
+.card-dark {
+  background: #112218;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 1rem;
+}
+
+.card-glow {
+  position: relative;
+  overflow: hidden;
+}
+
+.card-glow::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(19, 236, 109, 0.1), transparent);
+  transition: left 0.5s ease;
+}
+
+.card-glow:hover::before {
+  left: 100%;
+}
+
+/* ============================================================================
+   STATUS INDICATORS
+   ============================================================================ */
+
+.status-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.status-dot.connected {
+  background: #13ec6d;
+  box-shadow: 0 0 10px rgba(19, 236, 109, 0.8);
+  animation: glow-pulse 2s ease-in-out infinite;
+}
+
+.status-dot.disconnected {
+  background: #64748b;
+}
+
+.status-dot.warning {
+  background: #f59e0b;
+  box-shadow: 0 0 10px rgba(245, 158, 11, 0.8);
+  animation: glow-pulse 1.5s ease-in-out infinite;
+}
+
+.status-dot.danger {
+  background: #ef4444;
+  box-shadow: 0 0 10px rgba(239, 68, 68, 0.8);
+  animation: glow-pulse 1s ease-in-out infinite;
+}
+
+/* ============================================================================
+   HEAT MAP COLORS
+   ============================================================================ */
+
+.heat-recovered {
+  fill: #13ec6d;
+  filter: drop-shadow(0 0 12px rgba(19, 236, 109, 0.6));
+}
+
+.heat-moderate {
+  fill: #f59e0b;
+  filter: drop-shadow(0 0 12px rgba(245, 158, 11, 0.6));
+}
+
+.heat-fatigued {
+  fill: #ef4444;
+  filter: drop-shadow(0 0 12px rgba(239, 68, 68, 0.6));
+}
+
+.heat-idle {
+  fill: #64748b;
+  filter: drop-shadow(0 0 4px rgba(100, 116, 139, 0.4));
+}
+
+/* ============================================================================
+   APP CONTAINER
+   ============================================================================ */
+
+.app-container {
+  max-width: 450px;
+  margin: 0 auto;
+  min-height: 100vh;
+  position: relative;
+}
+
+/* ============================================================================
+   STRIPED PATTERN - For warning states
+   ============================================================================ */
+
+.striped-warning {
+  background-image: linear-gradient(
+    45deg,
+    rgba(0, 0, 0, 0.1) 25%,
+    transparent 25%,
+    transparent 50%,
+    rgba(0, 0, 0, 0.1) 50%,
+    rgba(0, 0, 0, 0.1) 75%,
+    transparent 75%,
+    transparent
+  );
+  background-size: 1rem 1rem;
+}
+
+/* ============================================================================
+   RESPONSIVE UTILITIES
+   ============================================================================ */
+
+@media (max-width: 768px) {
+  .card-glow::before {
+    display: none;
+  }
+}
+
+/* Selection */
+::selection {
+  background: #13ec6d;
+  color: #102218;
+}
+
+/* Safe area for iOS */
+.pb-safe {
+  padding-bottom: env(safe-area-inset-bottom, 0);
+}
+
+/* ============================================================================
+   HR ZONES - Heart Rate Training Zones
+   ============================================================================ */
+
+.hr-zone-1 { background-color: #60a5fa; }
+.hr-zone-2 { background-color: #34d399; }
+.hr-zone-3 { background-color: #fbbf24; }
+.hr-zone-4 { background-color: #fb923c; }
+.hr-zone-5 { background-color: #ef4444; }
+
+/* HR Zone Text Colors */
+.text-hr-zone-1 { color: #60a5fa; }
+.text-hr-zone-2 { color: #34d399; }
+.text-hr-zone-3 { color: #fbbf24; }
+.text-hr-zone-4 { color: #fb923c; }
+.text-hr-zone-5 { color: #ef4444; }
+
+/* ============================================================================
+   Z-SCORE INDICATOR - Recovery/Fatigue Classification
+   ============================================================================ */
+
+.z-score-bar {
+  position: relative;
+  height: 12px;
+  background: linear-gradient(to right, 
+    #ef4444 0%, 
+    #fb923c 25%, 
+    #fbbf24 37.5%,
+    #34d399 50%,
+    #13ec6d 75%,
+    #13ec6d 100%
+  );
+  border-radius: 9999px;
+}
+
+.z-score-indicator {
+  position: absolute;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  transition: left 0.5s ease-out;
+  box-shadow: 0 0 10px currentColor;
+}
+
+/* ============================================================================
+   AUTONOMOUS STATE COLORS
+   ============================================================================ */
+
+.state-recovered {
+  background-color: rgba(19, 236, 109, 0.15);
+  border-color: rgba(19, 236, 109, 0.4);
+  color: #13ec6d;
+}
+
+.state-optimal {
+  background-color: rgba(52, 211, 153, 0.15);
+  border-color: rgba(52, 211, 153, 0.4);
+  color: #34d399;
+}
+
+.state-moderate-fatigue {
+  background-color: rgba(251, 191, 36, 0.15);
+  border-color: rgba(251, 191, 36, 0.4);
+  color: #fbbf24;
+}
+
+.state-high-fatigue {
+  background-color: rgba(251, 146, 60, 0.15);
+  border-color: rgba(251, 146, 60, 0.4);
+  color: #fb923c;
+}
+
+.state-critical {
+  background-color: rgba(239, 68, 68, 0.15);
+  border-color: rgba(239, 68, 68, 0.4);
+  color: #ef4444;
+}
+
+/* ============================================================================
+   ALERT ANIMATIONS - For Safety Alerts
+   ============================================================================ */
+
+@keyframes alert-pulse {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.7;
+    transform: scale(1.02);
+  }
+}
+
+.alert-critical {
+  animation: alert-pulse 1s ease-in-out infinite;
+}
+
+.alert-warning {
+  animation: alert-pulse 2s ease-in-out infinite;
+}
+
+/* ============================================================================
+   HR GAUGE - Circular Heart Rate Display
+   ============================================================================ */
+
+.hr-gauge-container {
+  position: relative;
+  width: 200px;
+  height: 200px;
+}
+
+.hr-gauge-arc {
+  fill: none;
+  stroke-width: 8;
+  stroke-linecap: round;
+}
+
+.hr-gauge-bg {
+  stroke: rgba(255, 255, 255, 0.1);
+}
+
+.hr-gauge-value {
+  font-size: 48px;
+  font-weight: bold;
+  font-family: "Space Grotesk", sans-serif;
+}
+
+/* ============================================================================
+   BIOMECHANICS WARNING STATES
+   ============================================================================ */
+
+.biomech-warning {
+  background-color: rgba(245, 158, 11, 0.1);
+  border: 1px solid rgba(245, 158, 11, 0.3);
+}
+
+.biomech-danger {
+  background-color: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+}
+
+/* ============================================================================
+   TREND CHART STYLES
+   ============================================================================ */
+
+.trend-line {
+  fill: none;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.trend-area {
+  opacity: 0.3;
+}
+
+.trend-point {
+  transition: r 0.2s ease;
+}
+
+.trend-point:hover {
+  r: 6;
+}
+
+/* ============================================================================
+   SERIAL CONNECTION STATUS
+   ============================================================================ */
+
+.serial-status-connected {
+  color: #13ec6d;
+  box-shadow: 0 0 8px rgba(19, 236, 109, 0.6);
+}
+
+.serial-status-connecting {
+  color: #fbbf24;
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+.serial-status-disconnected {
+  color: #64748b;
+}
+
+.serial-status-error {
+  color: #ef4444;
+}
+
+/* ============================================================================
+   FIBER TYPE INDICATORS
+   ============================================================================ */
+
+.fiber-type-I {
+  background-color: rgba(59, 130, 246, 0.3);
+  color: #3b82f6;
+}
+
+.fiber-type-II {
+  background-color: rgba(239, 68, 68, 0.3);
+  color: #ef4444;
+}
+
+.fiber-type-both {
+  background: linear-gradient(90deg, rgba(59, 130, 246, 0.3) 50%, rgba(239, 68, 68, 0.3) 50%);
+  color: #a855f7;
+}
+
+/* ============================================================================
+   GRID BACKGROUND - For Biometric Heatmap
+   ============================================================================ */
+
+.grid-background {
+  background-image: 
+    linear-gradient(#13ec6d 1px, transparent 1px),
+    linear-gradient(90deg, #13ec6d 1px, transparent 1px);
+  background-size: 40px 40px;
+}
+
+/* ============================================================================
+   GAUGE CIRCLE - For circular progress
+   ============================================================================ */
+
+.gauge-circle {
+  filter: drop-shadow(0 0 10px rgba(19, 236, 109, 0.5));
+}

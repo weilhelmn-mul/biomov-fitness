@@ -1,0 +1,288 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                   String                 @id @default(cuid())
+  email                String                 @unique
+  name                 String?
+  nombreCompleto       String?
+  dni                  String?                @unique
+  rol                  String                 @default("usuario")
+  passwordHash         String?
+  aprobado             Boolean                @default(false)
+  createdAt            DateTime               @default(now())
+  updatedAt            DateTime               @updatedAt
+  Asistencia           Asistencia[]
+  Evaluacion           Evaluacion[]
+  Planificacion        Planificacion[]
+  RegistroRecuperacion RegistroRecuperacion[]
+  SesionEntrenamiento  SesionEntrenamiento[]
+  TestResult           TestResult[]
+  UserProfile          UserProfile?
+}
+
+model Asistencia {
+  id             String   @id @default(cuid())
+  pacienteId     String?
+  nombreCompleto String
+  area           String
+  fecha          DateTime @default(now())
+  observacion    String?
+  dispositivo    String?
+  ipAddress      String?
+  createdAt      DateTime @default(now())
+  User           User?    @relation(fields: [pacienteId], references: [id])
+
+  @@index([fecha])
+  @@index([area])
+  @@index([pacienteId])
+}
+
+model ConfiguracionArea {
+  id          String   @id @default(cuid())
+  codigo      String   @unique
+  nombre      String
+  descripcion String?
+  icono       String?
+  color       String?
+  activa      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Evaluacion {
+  id                   String       @id @default(cuid())
+  userId               String
+  profileId            String?
+  tipoEvaluacion       String
+  fechaEvaluacion      DateTime     @default(now())
+  musculoEvaluado      String?
+  ejercicioEvaluado    String?
+  fuerzaMaximaKg       Float?
+  rfdKgS               Float?
+  tiempoHastaFmaxMs    Int?
+  fuerzaMediaKg        Float?
+  duracionTestMs       Int?
+  indiceFatiga         Int?
+  simetriaPorcentaje   Float?
+  fcMedia              Int?
+  fcMaxAlcanzada       Int?
+  vfcRmssd             Float?
+  vfcSdnn              Float?
+  zscoreVfc            Float?
+  estadoAutonomo       String?
+  grasaCorporalPct     Float?
+  masaMuscularKg       Float?
+  aguaCorporalPct      Float?
+  romGrados            Float?
+  articulacionEvaluada String?
+  vdot                 Float?
+  tiempoCarreraSeg     Int?
+  distanciaCarreraM    Int?
+  observaciones        String?
+  createdAt            DateTime     @default(now())
+  UserProfile          UserProfile? @relation(fields: [profileId], references: [id])
+  User                 User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([tipoEvaluacion])
+  @@index([fechaEvaluacion])
+  @@index([userId])
+}
+
+model IsometricTest {
+  id             Int              @id @default(autoincrement())
+  muscleGroupId  Int?
+  testName       String
+  position       String?
+  jointAngle     String?
+  equipment      String?
+  metric         String?
+  bilateral      Boolean          @default(true)
+  instructions   String?
+  createdAt      DateTime         @default(now())
+  MuscleGroup    MuscleGroup?     @relation(fields: [muscleGroupId], references: [id], onDelete: Cascade)
+  NormativeValue NormativeValue[]
+  TestResult     TestResult[]
+
+  @@index([muscleGroupId])
+}
+
+model MuscleGroup {
+  id             Int              @id @default(autoincrement())
+  name           String
+  nameShort      String?
+  region         String?
+  subgroup       String?
+  function       String?
+  exercises      String?
+  createdAt      DateTime         @default(now())
+  IsometricTest  IsometricTest[]
+  NormativeValue NormativeValue[]
+  TestResult     TestResult[]
+
+  @@index([subgroup])
+  @@index([region])
+}
+
+model NormativeValue {
+  id            Int            @id @default(autoincrement())
+  muscleGroupId Int?
+  testId        Int?
+  level         String?
+  gender        String?
+  ageMin        Int?
+  ageMax        Int?
+  minValue      Float?
+  maxValue      Float?
+  unit          String?
+  createdAt     DateTime       @default(now())
+  IsometricTest IsometricTest? @relation(fields: [testId], references: [id], onDelete: Cascade)
+  MuscleGroup   MuscleGroup?   @relation(fields: [muscleGroupId], references: [id], onDelete: Cascade)
+
+  @@index([testId])
+  @@index([muscleGroupId])
+}
+
+model Planificacion {
+  id                      String                @id @default(cuid())
+  userId                  String
+  profileId               String?
+  nombrePlan              String
+  descripcion             String?
+  tipoPlan                String                @default("fuerza")
+  mesocicloNumero         Int                   @default(1)
+  fase                    String                @default("adaptacion")
+  fechaInicio             DateTime?
+  fechaFin                DateTime?
+  vdotObjetivo            Float?
+  ritmoObjetivoSegKm      Int?
+  fcObjetivoZona          String?
+  diasEntrenamientoSemana Int                   @default(4)
+  volumenSemanalMin       Int?
+  intensidadSemanalPuntos Int?
+  activo                  Boolean               @default(true)
+  completado              Boolean               @default(false)
+  createdAt               DateTime              @default(now())
+  updatedAt               DateTime              @updatedAt
+  UserProfile             UserProfile?          @relation(fields: [profileId], references: [id])
+  User                    User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  SesionEntrenamiento     SesionEntrenamiento[]
+
+  @@index([activo])
+  @@index([userId])
+}
+
+model Post {
+  id        String   @id @default(cuid())
+  title     String
+  content   String?
+  published Boolean  @default(false)
+  authorId  String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model RegistroRecuperacion {
+  id             String   @id @default(cuid())
+  userId         String
+  fecha          DateTime @default(now())
+  readinessScore Float?
+  calidadSueno   Float?
+  vfcRmssd       Float?
+  stressLevel    Int?
+  muscleSoreness Int?
+  energia        Int?
+  notas          String?
+  createdAt      DateTime @default(now())
+  User           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([fecha])
+  @@index([userId])
+}
+
+model SesionEntrenamiento {
+  id                 String         @id @default(cuid())
+  userId             String
+  planificacionId    String?
+  fecha              DateTime       @default(now())
+  tipoSesion         String?
+  completada         Boolean        @default(false)
+  duracionMin        Int?
+  volumenTotalKg     Float?
+  intensidadPromedio Int?
+  puntosIntensidad   Float?
+  fcPromedio         Int?
+  fcMaxSesion        Int?
+  caloriasEstimadas  Int?
+  rpePromedio        Float?
+  sensacionGeneral   String?
+  notas              String?
+  createdAt          DateTime       @default(now())
+  Planificacion      Planificacion? @relation(fields: [planificacionId], references: [id])
+  User               User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([fecha])
+  @@index([userId])
+}
+
+model TestResult {
+  id            Int            @id @default(autoincrement())
+  userId        String
+  testId        Int?
+  muscleGroupId Int?
+  side          String?
+  value         Float
+  unit          String?
+  rfd           Float?
+  durationMs    Int?
+  peakTimeMs    Int?
+  avgForce      Float?
+  fatigueIndex  Float?
+  forceIndex    Float?
+  hrAvg         Int?
+  hrPeak        Int?
+  date          DateTime       @default(now())
+  notes         String?
+  rawData       String?
+  createdAt     DateTime       @default(now())
+  MuscleGroup   MuscleGroup?   @relation(fields: [muscleGroupId], references: [id], onDelete: Cascade)
+  IsometricTest IsometricTest? @relation(fields: [testId], references: [id], onDelete: Cascade)
+  User          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([date])
+  @@index([testId])
+  @@index([userId])
+}
+
+model UserProfile {
+  id               String          @id @default(cuid())
+  userId           String          @unique
+  nombreCompleto   String?
+  fechaNacimiento  DateTime?
+  alturaCm         Float?
+  pesoKg           Float?
+  imc              Float?
+  edad             Int?
+  fcMaxima         Int?
+  fcReposo         Int?
+  vfcMedia         Float?
+  unidadesMetricas Boolean         @default(true)
+  nivelExperiencia String          @default("intermedio")
+  objetivo         String          @default("salud")
+  rmBenchPress     Float?
+  rmSquat          Float?
+  rmDeadlift       Float?
+  rmOverheadPress  Float?
+  rmBarbellRow     Float?
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+  Evaluacion       Evaluacion[]
+  Planificacion    Planificacion[]
+  User             User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
