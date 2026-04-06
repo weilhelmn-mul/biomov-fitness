@@ -1054,9 +1054,107 @@ export default function EvaluacionFuerzaIsometrica() {
     }, 20)
   }
   
-  const guardarEvaluacion = () => {
+  const guardarEvaluacion = async () => {
     if (!musculoSeleccionado || fuerzaPico === 0) return
     
+    // Calcular métricas adicionales desde la curva de fuerza
+    const calcularRFD = (desdeMs: number, hastaMs: number): number => {
+      const puntoInicio = datosFuerzaRef.current.find(p => p.tiempo >= desdeMs)
+      const puntoFin = datosFuerzaRef.current.find(p => p.tiempo >= hastaMs)
+      if (!puntoInicio || !puntoFin) return 0
+      const deltaFuerza = puntoFin.fuerza - puntoInicio.fuerza
+      const deltaTiempo = (hastaMs - desdeMs) / 1000 // en segundos
+      return Math.round(deltaFuerza / deltaTiempo)
+    }
+    
+    const calcularFuerzaEnTiempo = (ms: number): number => {
+      const punto = datosFuerzaRef.current.find(p => p.tiempo >= ms)
+      return punto?.fuerza || 0
+    }
+    
+    const calcularTiempoHastaPorcentaje = (porcentaje: number): number => {
+      const objetivo = fuerzaPico * (porcentaje / 100)
+      const punto = datosFuerzaRef.current.find(p => p.fuerza >= objetivo)
+      return punto?.tiempo || 0
+    }
+    
+    // Calcular todos los RFD
+    const rfd50ms = calcularRFD(0, 50)
+    const rfd100ms = calcularRFD(0, 100)
+    const rfd150ms = calcularRFD(0, 150)
+    const rfd200ms = calcularRFD(0, 200)
+    
+    // Tiempos hasta porcentajes de Fmax
+    const timeTo50Fmax = calcularTiempoHastaPorcentaje(50)
+    const timeTo90Fmax = calcularTiempoHastaPorcentaje(90)
+    
+    // Fuerza a 200ms
+    const forceAt200ms = calcularFuerzaEnTiempo(200)
+    
+    // Mapa de músculo a código de Supabase
+    const muscleCodeMap: Record<string, string> = {
+      'pectoral_mayor': 'pectoral',
+      'dorsal_ancho': 'dorsal',
+      'trapecio': 'trapecio',
+      'deltoide_anterior': 'deltoide_ant',
+      'deltoide_medio': 'deltoide_med',
+      'deltoide_posterior': 'deltoide_post',
+      'biceps_braquial': 'biceps',
+      'triceps_braquial': 'triceps',
+      'recto_abdominal': 'abdominal',
+      'oblicuos': 'oblicuos',
+      'erectores_espinales': 'erector_spinae',
+      'gluteo_mayor': 'glute_max',
+      'gluteo_medio': 'glute_med',
+      'cuadriceps': 'quads',
+      'isquiotibiales': 'hamstrings',
+      'aductores': 'adductors',
+      'gastrocnemio': 'gastrocnemius',
+      'soleo': 'soleus',
+      'tibial_anterior': 'tibialis_ant',
+    }
+    
+    // Preparar datos para Supabase
+    const evaluationData = {
+      athleteId: 'demo-user', // TODO: obtener del usuario logueado
+      athleteName: 'Usuario Demo',
+      muscleEvaluated: muscleCodeMap[musculoSeleccionado] || musculoSeleccionado,
+      side: ladoActivo === 'R' ? 'Derecho' as const : 'Izquierdo' as const,
+      unit: unidadFuerza,
+      
+      // Métricas principales
+      fmax: fuerzaPico,
+      forceAt200ms: forceAt200ms,
+      averageForce: fuerzaMedia,
+      testDuration: duracionTest / 1000, // en segundos
+      
+      // Métricas de tiempo
+      timeToFmax: tiempoPico,
+      timeTo50Fmax: timeTo50Fmax,
+      timeTo90Fmax: timeTo90Fmax,
+      
+      // RFD
+      rfdMax: rfd,
+      rfd50ms: rfd50ms,
+      rfd100ms: rfd100ms,
+      rfd150ms: rfd150ms,
+      rfd200ms: rfd200ms || rfd,
+      
+      // Curva de fuerza
+      forceCurve: datosFuerzaRef.current.map(p => ({
+        time: p.tiempo / 1000, // en segundos
+        force: p.fuerza
+      })),
+      
+      // Metadatos
+      samplingRate: 50,
+      deviceInfo: {
+        model: 'BIOMOV-ForceSensor-v1',
+        connection: estadoConexion === 'conectado' ? 'serial' : 'simulated'
+      }
+    }
+    
+    // Guardar localmente
     const nueva: EvaluacionIsometricaCompleta = {
       id: Date.now().toString(),
       fecha: new Date().toISOString(),
@@ -1085,6 +1183,26 @@ export default function EvaluacionFuerzaIsometrica() {
       }
       return m
     }))
+    
+    // Guardar en Supabase
+    try {
+      agregarLog('Guardando en Supabase...')
+      const response = await fetch('/api/force-isometric', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(evaluationData)
+      })
+      
+      const result = await response.json()
+      
+      if (result.success) {
+        agregarLog(`✓ Guardado en Supabase: ID ${result.evaluation?.id?.slice(0, 8)}...`)
+      } else {
+        agregarLog(`ERROR Supabase: ${result.error}`)
+      }
+    } catch (e) {
+      agregarLog(`ERROR guardando: ${(e as Error).message}`)
+    }
     
     // Reiniciar
     setEstadoTest('listo')
