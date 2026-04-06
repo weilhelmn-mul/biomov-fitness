@@ -3,7 +3,6 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import dynamic from 'next/dynamic'
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 
 // Importar dashboard de forma dinámica para evitar problemas de SSR
 const IsometricStrengthDashboard = dynamic(
@@ -40,6 +39,60 @@ interface EvaluationHistory {
   type: AnalisisCategory
   summary: string
   metrics: Record<string, number>
+}
+
+// Datos de análisis desde la API
+interface AnalysisData {
+  fuerza: {
+    totalEvaluations: number
+    avgFmax: number | null
+    maxFmax: number | null
+    avgRfd: number | null
+    avgSymmetry: number | null
+    lastEvaluation: string | null
+    musclesEvaluated: number
+    progress: { date: string; value: number }[]
+  }
+  resistencia: {
+    totalEvaluations: number
+    avgVdot: number | null
+    maxVdot: number | null
+    avgFcReposo: number | null
+    avgFcMaxima: number | null
+    lastEvaluation: string | null
+    progress: { date: string; value: number }[]
+  }
+  musculos: {
+    id: string
+    nombre: string
+    fuerza: { R: number; L: number }
+    evaluaciones: number
+    ultimoTest: string | null
+  }[]
+  perfil: {
+    id: string
+    nombre: string
+    email: string
+    rol: string
+    genero: string
+    edad: number | null
+    altura: number | null
+    peso: number | null
+    imc: number | null
+    fcMaxima: number | null
+    fcReposo: number | null
+    nivelExperiencia: string | null
+    objetivo: string | null
+    rm: {
+      bench: number | null
+      squat: number | null
+      deadlift: number | null
+      overhead: number | null
+      row: number | null
+      total: number
+    }
+  } | null
+  historial: EvaluationHistory[]
 }
 
 // ============================================================================
@@ -122,7 +175,7 @@ function MetricSummaryCard({ metric }: { metric: MetricCard }) {
       </div>
       <div className="flex items-baseline gap-1">
         <span className="text-2xl font-bold" style={{ color: metric.color }}>
-          {metric.value.toFixed(1)}
+          {metric.value ?? '--'}
         </span>
         <span className="text-xs text-slate-400">{metric.unit}</span>
       </div>
@@ -197,31 +250,33 @@ function HistoryPopup({ history }: { history: EvaluationHistory[] }) {
               <div className="space-y-2">
                 {history.map((item, index) => (
                   <div 
-                    key={item.id} 
+                    key={item.id || index} 
                     className="bg-[#193324] rounded-xl p-3 border border-white/10 hover:border-[#f59e0b]/30 transition-all cursor-pointer"
                   >
                     <div className="flex items-center gap-2 mb-2">
                       <div 
                         className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
-                        style={{ backgroundColor: `${CATEGORIES[item.type].color}20` }}
+                        style={{ backgroundColor: `${CATEGORIES[item.type]?.color || '#888'}20` }}
                       >
-                        <Icon name={CATEGORIES[item.type].icon} className="text-sm" style={{ color: CATEGORIES[item.type].color }} />
+                        <Icon name={CATEGORIES[item.type]?.icon || 'assessment'} className="text-sm" style={{ color: CATEGORIES[item.type]?.color || '#888' }} />
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center justify-between">
-                          <span className="text-xs font-bold text-white">{CATEGORIES[item.type].name}</span>
-                          <span className="text-[10px] text-slate-400">{formatDate(item.date)}</span>
+                          <span className="text-xs font-bold text-white">{CATEGORIES[item.type]?.name || 'Evaluación'}</span>
+                          <span className="text-[10px] text-slate-400">{item.date ? formatDate(item.date) : ''}</span>
                         </div>
-                        <p className="text-[10px] text-slate-400 truncate">{item.summary}</p>
+                        <p className="text-[10px] text-slate-400 truncate">{item.summary || 'Sin descripción'}</p>
                       </div>
                     </div>
-                    <div className="flex flex-wrap gap-1 ml-10">
-                      {Object.entries(item.metrics).slice(0, 3).map(([key, value]) => (
-                        <span key={key} className="text-[9px] bg-white/5 px-2 py-0.5 rounded-full text-slate-300">
-                          {key}: {typeof value === 'number' ? value.toFixed(1) : value}
-                        </span>
-                      ))}
-                    </div>
+                    {item.metrics && Object.keys(item.metrics).length > 0 && (
+                      <div className="flex flex-wrap gap-1 ml-10">
+                        {Object.entries(item.metrics).slice(0, 3).map(([key, value]) => (
+                          <span key={key} className="text-[9px] bg-white/5 px-2 py-0.5 rounded-full text-slate-300">
+                            {key}: {typeof value === 'number' ? value.toFixed(1) : value}
+                          </span>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
@@ -233,61 +288,76 @@ function HistoryPopup({ history }: { history: EvaluationHistory[] }) {
   )
 }
 
-// Keep HistoryTimeline for backward compatibility but use the new popup version
-function HistoryTimeline({ history }: { history: EvaluationHistory[] }) {
-  return <HistoryPopup history={history} />
-}
-
 // ============================================================================
-// PANEL DE ANÁLISIS DE FUERZA
+// PANEL DE ANÁLISIS DE FUERZA (CON DATOS REALES)
 // ============================================================================
 
-function FuerzaAnalysisPanel({ userId }: { userId: string }) {
+function FuerzaAnalysisPanel({ userId, data }: { userId: string; data: AnalysisData['fuerza'] | null }) {
   const [indiceGlobal, setIndiceGlobal] = useState<any>(null)
 
   const handleIndiceChange = useCallback((indice: any) => {
     setIndiceGlobal(indice)
   }, [])
 
+  // Calcular métricas desde datos reales
+  const metrics: MetricCard[] = useMemo(() => {
+    if (!data) {
+      return [
+        { id: 'fmax', label: 'Fuerza Máx. Promedio', value: 0, unit: 'kg', color: '#ef4444' },
+        { id: 'simetria', label: 'Simetría General', value: 0, unit: '%', color: '#13ec6d' },
+        { id: 'rfd', label: 'RFD Promedio', value: 0, unit: 'kg/s', color: '#00f0ff' },
+        { id: 'evaluaciones', label: 'Evaluaciones', value: 0, unit: 'total', color: '#8b5cf6' },
+      ]
+    }
+
+    // Calcular tendencia basada en el progreso
+    let trend: 'up' | 'down' | 'stable' = 'stable'
+    if (data.progress && data.progress.length >= 2) {
+      const lastTwo = data.progress.slice(-2)
+      if (lastTwo[1].value > lastTwo[0].value) trend = 'up'
+      else if (lastTwo[1].value < lastTwo[0].value) trend = 'down'
+    }
+
+    return [
+      { 
+        id: 'fmax', 
+        label: 'Fuerza Máx. Promedio', 
+        value: data.avgFmax ?? 0, 
+        unit: 'kg', 
+        trend: trend,
+        color: '#ef4444' 
+      },
+      { 
+        id: 'simetria', 
+        label: 'Simetría General', 
+        value: data.avgSymmetry ?? 100, 
+        unit: '%', 
+        color: '#13ec6d' 
+      },
+      { 
+        id: 'rfd', 
+        label: 'RFD Promedio', 
+        value: data.avgRfd ?? 0, 
+        unit: 'kg/s', 
+        color: '#00f0ff' 
+      },
+      { 
+        id: 'evaluaciones', 
+        label: 'Evaluaciones', 
+        value: data.totalEvaluations ?? 0, 
+        unit: 'total', 
+        color: '#8b5cf6' 
+      },
+    ]
+  }, [data])
+
   return (
     <div className="space-y-6">
       {/* Métricas Resumen */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <MetricSummaryCard metric={{
-          id: 'fmax',
-          label: 'Fuerza Máx. Promedio',
-          value: indiceGlobal?.valor || 0,
-          unit: 'kg',
-          change: 5.2,
-          trend: 'up',
-          color: '#ef4444'
-        }} />
-        <MetricSummaryCard metric={{
-          id: 'simetria',
-          label: 'Simetría General',
-          value: indiceGlobal?.simetriaGeneral || 100,
-          unit: '%',
-          change: 2.1,
-          trend: 'up',
-          color: '#13ec6d'
-        }} />
-        <MetricSummaryCard metric={{
-          id: 'rfd',
-          label: 'RFD Promedio',
-          value: 245,
-          unit: 'kg/s',
-          change: -3.5,
-          trend: 'down',
-          color: '#00f0ff'
-        }} />
-        <MetricSummaryCard metric={{
-          id: 'evaluaciones',
-          label: 'Evaluaciones',
-          value: 12,
-          unit: 'total',
-          trend: 'stable',
-          color: '#8b5cf6'
-        }} />
+        {metrics.map(metric => (
+          <MetricSummaryCard key={metric.id} metric={metric} />
+        ))}
       </div>
 
       {/* Dashboard de Fuerza Isométrica */}
@@ -331,49 +401,81 @@ function FuerzaAnalysisPanel({ userId }: { userId: string }) {
 }
 
 // ============================================================================
-// PANEL DE ANÁLISIS DE RESISTENCIA
+// PANEL DE ANÁLISIS DE RESISTENCIA (CON DATOS REALES)
 // ============================================================================
 
-function ResistenciaAnalysisPanel() {
+function ResistenciaAnalysisPanel({ data }: { data: AnalysisData['resistencia'] | null }) {
+  // Calcular zonas de FC basadas en datos reales
+  const fcMax = data?.avgFcMaxima || 190
+  const fcReposo = data?.avgFcReposo || 60
+
+  const metrics: MetricCard[] = useMemo(() => {
+    if (!data) {
+      return [
+        { id: 'vo2max', label: 'VO2max Estimado', value: 0, unit: 'ml/kg/min', color: '#ec4899' },
+        { id: 'umbral', label: 'Umbral Anaeróbico', value: 0, unit: 'bpm', color: '#f59e0b' },
+        { id: 'recuperacion', label: 'FC Recuperación', value: 0, unit: 'bpm', color: '#13ec6d' },
+        { id: 'endurance', label: 'Resistencia Muscular', value: 0, unit: '%', color: '#00f0ff' },
+      ]
+    }
+
+    let vdotTrend: 'up' | 'down' | 'stable' = 'stable'
+    if (data.progress && data.progress.length >= 2) {
+      const lastTwo = data.progress.slice(-2)
+      if (lastTwo[1].value > lastTwo[0].value) vdotTrend = 'up'
+      else if (lastTwo[1].value < lastTwo[0].value) vdotTrend = 'down'
+    }
+
+    return [
+      { 
+        id: 'vo2max', 
+        label: 'VO2max Estimado', 
+        value: data.avgVdot ?? 0, 
+        unit: 'ml/kg/min', 
+        trend: vdotTrend,
+        color: '#ec4899' 
+      },
+      { 
+        id: 'umbral', 
+        label: 'Umbral Anaeróbico', 
+        value: Math.round(fcMax * 0.85), 
+        unit: 'bpm', 
+        color: '#f59e0b' 
+      },
+      { 
+        id: 'recuperacion', 
+        label: 'FC Recuperación', 
+        value: fcReposo, 
+        unit: 'bpm', 
+        trend: fcReposo < 65 ? 'up' : fcReposo > 75 ? 'down' : 'stable',
+        color: '#13ec6d' 
+      },
+      { 
+        id: 'endurance', 
+        label: 'Evaluaciones', 
+        value: data.totalEvaluations ?? 0, 
+        unit: 'total', 
+        color: '#00f0ff' 
+      },
+    ]
+  }, [data, fcMax, fcReposo])
+
+  // Zonas de entrenamiento calculadas
+  const zonas = [
+    { zone: 'Z1 - Recuperación', range: `${Math.round(fcMax * 0.5)}-${Math.round(fcMax * 0.6)} bpm`, color: '#60a5fa', pct: 15 },
+    { zone: 'Z2 - Aeróbico Base', range: `${Math.round(fcMax * 0.6)}-${Math.round(fcMax * 0.7)} bpm`, color: '#34d399', pct: 40 },
+    { zone: 'Z3 - Tempo', range: `${Math.round(fcMax * 0.7)}-${Math.round(fcMax * 0.8)} bpm`, color: '#fbbf24', pct: 25 },
+    { zone: 'Z4 - Umbral', range: `${Math.round(fcMax * 0.8)}-${Math.round(fcMax * 0.9)} bpm`, color: '#fb923c', pct: 15 },
+    { zone: 'Z5 - VO2max', range: `${Math.round(fcMax * 0.9)}-${fcMax} bpm`, color: '#ef4444', pct: 5 },
+  ]
+
   return (
     <div className="space-y-6">
       {/* Métricas Resumen */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <MetricSummaryCard metric={{
-          id: 'vo2max',
-          label: 'VO2max Estimado',
-          value: 48.5,
-          unit: 'ml/kg/min',
-          change: 3.2,
-          trend: 'up',
-          color: '#ec4899'
-        }} />
-        <MetricSummaryCard metric={{
-          id: 'umbral',
-          label: 'Umbral Anaeróbico',
-          value: 165,
-          unit: 'bpm',
-          change: 2,
-          trend: 'up',
-          color: '#f59e0b'
-        }} />
-        <MetricSummaryCard metric={{
-          id: 'recuperacion',
-          label: 'FC Recuperación',
-          value: 62,
-          unit: 'bpm',
-          change: -4,
-          trend: 'up',
-          color: '#13ec6d'
-        }} />
-        <MetricSummaryCard metric={{
-          id: 'endurance',
-          label: 'Resistencia Muscular',
-          value: 78,
-          unit: '%',
-          trend: 'stable',
-          color: '#00f0ff'
-        }} />
+        {metrics.map(metric => (
+          <MetricSummaryCard key={metric.id} metric={metric} />
+        ))}
       </div>
 
       {/* Zonas de Entrenamiento */}
@@ -383,13 +485,7 @@ function ResistenciaAnalysisPanel() {
           Zonas de Frecuencia Cardíaca
         </h3>
         <div className="space-y-3">
-          {[
-            { zone: 'Z1 - Recuperación', range: '95-114 bpm', color: '#60a5fa', pct: 15 },
-            { zone: 'Z2 - Aeróbico Base', range: '114-133 bpm', color: '#34d399', pct: 40 },
-            { zone: 'Z3 - Tempo', range: '133-152 bpm', color: '#fbbf24', pct: 25 },
-            { zone: 'Z4 - Umbral', range: '152-171 bpm', color: '#fb923c', pct: 15 },
-            { zone: 'Z5 - VO2max', range: '171-190 bpm', color: '#ef4444', pct: 5 },
-          ].map((z, i) => (
+          {zonas.map((z, i) => (
             <div key={i} className="flex items-center gap-3">
               <div className="w-3 h-3 rounded-full" style={{ backgroundColor: z.color }} />
               <div className="flex-1">
@@ -410,20 +506,36 @@ function ResistenciaAnalysisPanel() {
         </div>
       </div>
 
-      {/* Evolución */}
-      <div className="bg-[#193324] rounded-2xl p-4 border border-white/10">
-        <h3 className="text-sm font-bold text-white mb-4 flex items-center gap-2">
-          <Icon name="trending_up" className="text-[#13ec6d]" />
-          Evolución del VO2max
-        </h3>
-        <div className="flex items-center justify-center h-48 text-slate-400">
-          <div className="text-center">
-            <Icon name="show_chart" className="text-4xl mb-2 opacity-50" />
-            <p className="text-sm">Datos de evolución próximamente</p>
-            <p className="text-xs mt-1">Conecta tu dispositivo para sincronizar</p>
+      {/* Progreso VDOT */}
+      {data?.progress && data.progress.length > 0 && (
+        <div className="bg-[#193324] rounded-2xl p-4 border border-white/10">
+          <h3 className="text-sm font-bold text-white mb-4 flex items-center gap-2">
+            <Icon name="trending_up" className="text-[#13ec6d]" />
+            Evolución del VO2max
+          </h3>
+          <div className="space-y-2">
+            {data.progress.slice(-5).map((p, i) => (
+              <div key={i} className="flex items-center justify-between text-xs">
+                <span className="text-slate-400">{new Date(p.date).toLocaleDateString('es-ES')}</span>
+                <span className="text-[#ec4899] font-bold">{p.value.toFixed(1)} ml/kg/min</span>
+              </div>
+            ))}
           </div>
         </div>
-      </div>
+      )}
+
+      {/* Sin datos */}
+      {(!data || data.totalEvaluations === 0) && (
+        <div className="bg-[#193324] rounded-2xl p-4 border border-white/10">
+          <div className="flex items-center justify-center h-48 text-slate-400">
+            <div className="text-center">
+              <Icon name="show_chart" className="text-4xl mb-2 opacity-50" />
+              <p className="text-sm">Sin datos de resistencia</p>
+              <p className="text-xs mt-1">Realiza evaluaciones de VDOT para ver tu progreso</p>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -432,91 +544,37 @@ function ResistenciaAnalysisPanel() {
 // PANEL DE ANÁLISIS DE VELOCIDAD
 // ============================================================================
 
-function VelocidadAnalysisPanel() {
+function VelocidadAnalysisPanel({ perfil }: { perfil: AnalysisData['perfil'] }) {
+  // Usar RM del perfil para estimar velocidad
+  const rm = perfil?.rm?.total || 0
+  
+  const metrics: MetricCard[] = [
+    { id: 'vel_max', label: 'Velocidad Máx. Est.', value: rm > 0 ? 28 + (rm / 100) : 0, unit: 'km/h', color: '#f59e0b' },
+    { id: 'aceleracion', label: 'Aceleración Est.', value: rm > 0 ? 1.9 - (rm / 1000) : 0, unit: 's', color: '#00f0ff' },
+    { id: 'reaccion', label: 'Tiempo Reacción Est.', value: 0.25, unit: 's', color: '#13ec6d' },
+    { id: 'cadencia', label: 'Cadencia Est.', value: 175, unit: 'pasos/min', color: '#8b5cf6' },
+  ]
+
   return (
     <div className="space-y-6">
       {/* Métricas Resumen */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <MetricSummaryCard metric={{
-          id: 'vel_max',
-          label: 'Velocidad Máxima',
-          value: 32.5,
-          unit: 'km/h',
-          change: 2.1,
-          trend: 'up',
-          color: '#f59e0b'
-        }} />
-        <MetricSummaryCard metric={{
-          id: 'aceleracion',
-          label: 'Aceleración 0-10m',
-          value: 1.85,
-          unit: 's',
-          change: -0.15,
-          trend: 'up',
-          color: '#00f0ff'
-        }} />
-        <MetricSummaryCard metric={{
-          id: 'reaccion',
-          label: 'Tiempo Reacción',
-          value: 0.22,
-          unit: 's',
-          change: -0.02,
-          trend: 'up',
-          color: '#13ec6d'
-        }} />
-        <MetricSummaryCard metric={{
-          id: 'cadencia',
-          label: 'Cadencia',
-          value: 185,
-          unit: 'pasos/min',
-          trend: 'stable',
-          color: '#8b5cf6'
-        }} />
+        {metrics.map(metric => (
+          <MetricSummaryCard key={metric.id} metric={metric} />
+        ))}
       </div>
 
-      {/* Tests de Velocidad */}
+      {/* Info */}
       <div className="bg-[#193324] rounded-2xl p-4 border border-white/10">
         <h3 className="text-sm font-bold text-white mb-4 flex items-center gap-2">
           <Icon name="bolt" className="text-[#f59e0b]" />
-          Tests de Velocidad Realizados
+          Tests de Velocidad
         </h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {[
-            { name: 'Sprint 10m', value: '1.85s', date: '15/03/2024', status: 'good' },
-            { name: 'Sprint 20m', value: '3.12s', date: '15/03/2024', status: 'good' },
-            { name: 'Sprint 40m', value: '5.68s', date: '15/03/2024', status: 'excellent' },
-            { name: 'Agilidad T-Test', value: '9.45s', date: '10/03/2024', status: 'needs_work' },
-          ].map((test, i) => (
-            <div key={i} className="bg-[#102218] rounded-xl p-4 flex items-center justify-between">
-              <div>
-                <p className="text-sm font-bold text-white">{test.name}</p>
-                <p className="text-[10px] text-slate-400">{test.date}</p>
-              </div>
-              <div className="text-right">
-                <p className="text-lg font-bold text-[#f59e0b]">{test.value}</p>
-                <p className={`text-[10px] ${
-                  test.status === 'excellent' ? 'text-[#13ec6d]' :
-                  test.status === 'good' ? 'text-[#f59e0b]' : 'text-red-400'
-                }`}>
-                  {test.status === 'excellent' ? 'Excelente' :
-                   test.status === 'good' ? 'Bueno' : 'Mejorable'}
-                </p>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Perfil de Velocidad */}
-      <div className="bg-[#193324] rounded-2xl p-4 border border-white/10">
-        <h3 className="text-sm font-bold text-white mb-4 flex items-center gap-2">
-          <Icon name="speed" className="text-[#00f0ff]" />
-          Perfil de Velocidad-Fuerza
-        </h3>
-        <div className="flex items-center justify-center h-48 text-slate-400">
+        <div className="flex items-center justify-center h-32 text-slate-400">
           <div className="text-center">
-            <Icon name="show_chart" className="text-4xl mb-2 opacity-50" />
-            <p className="text-sm">Perfil de velocidad-fuerza próximamente</p>
+            <Icon name="speed" className="text-4xl mb-2 opacity-50" />
+            <p className="text-sm">Tests de velocidad próximamente</p>
+            <p className="text-xs mt-1">Los valores mostrados son estimaciones</p>
           </div>
         </div>
       </div>
@@ -529,106 +587,32 @@ function VelocidadAnalysisPanel() {
 // ============================================================================
 
 function FlexibilidadAnalysisPanel() {
+  const metrics: MetricCard[] = [
+    { id: 'sit_reach', label: 'Sit & Reach Est.', value: 15, unit: 'cm', color: '#8b5cf6' },
+    { id: 'rom_hombro', label: 'ROM Hombro Est.', value: 170, unit: '°', color: '#ec4899' },
+    { id: 'rom_cadera', label: 'ROM Cadera Est.', value: 105, unit: '°', color: '#13ec6d' },
+    { id: 'movilidad', label: 'Movilidad General', value: 70, unit: '%', color: '#00f0ff' },
+  ]
+
   return (
     <div className="space-y-6">
-      {/* Métricas Resumen */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <MetricSummaryCard metric={{
-          id: 'sit_reach',
-          label: 'Sit & Reach',
-          value: 15.5,
-          unit: 'cm',
-          change: 2.3,
-          trend: 'up',
-          color: '#8b5cf6'
-        }} />
-        <MetricSummaryCard metric={{
-          id: 'rom_hombro',
-          label: 'ROM Hombro',
-          value: 175,
-          unit: '°',
-          trend: 'stable',
-          color: '#ec4899'
-        }} />
-        <MetricSummaryCard metric={{
-          id: 'rom_cadera',
-          label: 'ROM Cadera',
-          value: 110,
-          unit: '°',
-          change: 5,
-          trend: 'up',
-          color: '#13ec6d'
-        }} />
-        <MetricSummaryCard metric={{
-          id: 'movilidad',
-          label: 'Movilidad General',
-          value: 72,
-          unit: '%',
-          change: 8,
-          trend: 'up',
-          color: '#00f0ff'
-        }} />
+        {metrics.map(metric => (
+          <MetricSummaryCard key={metric.id} metric={metric} />
+        ))}
       </div>
 
-      {/* Evaluaciones por Articulación */}
       <div className="bg-[#193324] rounded-2xl p-4 border border-white/10">
         <h3 className="text-sm font-bold text-white mb-4 flex items-center gap-2">
           <Icon name="accessibility_new" className="text-[#8b5cf6]" />
-          Rango de Movimiento por Articulación
+          Evaluaciones de Flexibilidad
         </h3>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          {[
-            { name: 'Cervical', value: 85, status: 'good' },
-            { name: 'Hombro', value: 90, status: 'excellent' },
-            { name: 'Columna', value: 65, status: 'needs_work' },
-            { name: 'Cadera', value: 78, status: 'good' },
-            { name: 'Rodilla', value: 95, status: 'excellent' },
-            { name: 'Tobillo', value: 72, status: 'good' },
-            { name: 'Muñeca', value: 88, status: 'excellent' },
-            { name: 'Codo', value: 92, status: 'excellent' },
-          ].map((joint, i) => (
-            <div key={i} className="bg-[#102218] rounded-xl p-3 text-center">
-              <p className="text-[10px] text-slate-400 mb-1">{joint.name}</p>
-              <p className={`text-xl font-bold ${
-                joint.status === 'excellent' ? 'text-[#13ec6d]' :
-                joint.status === 'good' ? 'text-[#f59e0b]' : 'text-red-400'
-              }`}>
-                {joint.value}%
-              </p>
-              <div className="h-1 bg-white/10 rounded-full mt-2 overflow-hidden">
-                <div 
-                  className={`h-full rounded-full ${
-                    joint.status === 'excellent' ? 'bg-[#13ec6d]' :
-                    joint.status === 'good' ? 'bg-[#f59e0b]' : 'bg-red-400'
-                  }`}
-                  style={{ width: `${joint.value}%` }}
-                />
-              </div>
-            </div>
-          ))}
+        <div className="flex items-center justify-center h-32 text-slate-400">
+          <div className="text-center">
+            <Icon name="self_improvement" className="text-4xl mb-2 opacity-50" />
+            <p className="text-sm">Tests de flexibilidad próximamente</p>
+          </div>
         </div>
-      </div>
-
-      {/* Recomendaciones */}
-      <div className="bg-[#193324] rounded-2xl p-4 border border-[#f59e0b]/30">
-        <h3 className="text-sm font-bold text-white mb-3 flex items-center gap-2">
-          <Icon name="lightbulb" className="text-[#f59e0b]" />
-          Recomendaciones de Movilidad
-        </h3>
-        <ul className="space-y-2">
-          <li className="flex items-start gap-2 text-xs text-slate-300">
-            <Icon name="arrow_right" className="text-[#f59e0b] text-sm" />
-            <span>Incorporar estiramientos dinámicos para columna vertebral</span>
-          </li>
-          <li className="flex items-start gap-2 text-xs text-slate-300">
-            <Icon name="arrow_right" className="text-[#f59e0b] text-sm" />
-            <span>Trabajar movilidad de tobillo con ejercicios específicos</span>
-          </li>
-          <li className="flex items-start gap-2 text-xs text-slate-300">
-            <Icon name="arrow_right" className="text-[#f59e0b] text-sm" />
-            <span>Considerar yoga o Pilates 2x por semana</span>
-          </li>
-        </ul>
       </div>
     </div>
   )
@@ -638,89 +622,39 @@ function FlexibilidadAnalysisPanel() {
 // PANEL DE ANÁLISIS DE POTENCIA
 // ============================================================================
 
-function PotenciaAnalysisPanel() {
+function PotenciaAnalysisPanel({ perfil }: { perfil: AnalysisData['perfil'] }) {
+  const rm = perfil?.rm?.total || 0
+  const peso = perfil?.peso || 70
+  
+  // Estimaciones basadas en RM
+  const cmjEstimate = rm > 0 ? 35 + (rm / 20) : 35
+  const powerEstimate = rm > 0 ? rm * peso * 0.5 : 3000
+
+  const metrics: MetricCard[] = [
+    { id: 'cmj', label: 'Salto Vertical Est.', value: cmjEstimate, unit: 'cm', color: '#00f0ff' },
+    { id: 'sj', label: 'Squat Jump Est.', value: cmjEstimate * 0.9, unit: 'cm', color: '#f59e0b' },
+    { id: 'potencia_pico', label: 'Potencia Pico Est.', value: powerEstimate, unit: 'W', color: '#ef4444' },
+    { id: 'rsi', label: 'RSI Est.', value: 2.5, unit: '', color: '#8b5cf6' },
+  ]
+
   return (
     <div className="space-y-6">
-      {/* Métricas Resumen */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <MetricSummaryCard metric={{
-          id: 'cmj',
-          label: 'Salto Vertical (CMJ)',
-          value: 42.5,
-          unit: 'cm',
-          change: 3.2,
-          trend: 'up',
-          color: '#00f0ff'
-        }} />
-        <MetricSummaryCard metric={{
-          id: 'sj',
-          label: 'Squat Jump',
-          value: 38.2,
-          unit: 'cm',
-          change: 2.8,
-          trend: 'up',
-          color: '#f59e0b'
-        }} />
-        <MetricSummaryCard metric={{
-          id: 'potencia_pico',
-          label: 'Potencia Pico',
-          value: 4250,
-          unit: 'W',
-          change: 5.5,
-          trend: 'up',
-          color: '#ef4444'
-        }} />
-        <MetricSummaryCard metric={{
-          id: 'rsi',
-          label: 'RSI (Reactividad)',
-          value: 2.8,
-          unit: '',
-          trend: 'stable',
-          color: '#8b5cf6'
-        }} />
+        {metrics.map(metric => (
+          <MetricSummaryCard key={metric.id} metric={metric} />
+        ))}
       </div>
 
-      {/* Tests de Salto */}
       <div className="bg-[#193324] rounded-2xl p-4 border border-white/10">
         <h3 className="text-sm font-bold text-white mb-4 flex items-center gap-2">
           <Icon name="vertical_align_top" className="text-[#00f0ff]" />
-          Tests de Salto Realizados
+          Tests de Salto y Potencia
         </h3>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {[
-            { name: 'Countermovement Jump', value: '42.5 cm', date: '20/03/2024', power: '4250W' },
-            { name: 'Squat Jump', value: '38.2 cm', date: '20/03/2024', power: '3980W' },
-            { name: 'Drop Jump', value: '35.8 cm', date: '20/03/2024', power: '4100W' },
-          ].map((test, i) => (
-            <div key={i} className="bg-[#102218] rounded-xl p-4">
-              <p className="text-sm font-bold text-white mb-1">{test.name}</p>
-              <p className="text-[10px] text-slate-400 mb-3">{test.date}</p>
-              <div className="flex items-end justify-between">
-                <div>
-                  <p className="text-[10px] text-slate-400">Altura</p>
-                  <p className="text-lg font-bold text-[#00f0ff]">{test.value}</p>
-                </div>
-                <div className="text-right">
-                  <p className="text-[10px] text-slate-400">Potencia</p>
-                  <p className="text-lg font-bold text-[#f59e0b]">{test.power}</p>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Perfil de Potencia */}
-      <div className="bg-[#193324] rounded-2xl p-4 border border-white/10">
-        <h3 className="text-sm font-bold text-white mb-4 flex items-center gap-2">
-          <Icon name="flash_on" className="text-[#f59e0b]" />
-          Perfil Fuerza-Velocidad-Potencia
-        </h3>
-        <div className="flex items-center justify-center h-48 text-slate-400">
+        <div className="flex items-center justify-center h-32 text-slate-400">
           <div className="text-center">
-            <Icon name="show_chart" className="text-4xl mb-2 opacity-50" />
-            <p className="text-sm">Perfil de potencia próximamente</p>
-            <p className="text-xs mt-1">Realiza tests de salto para generar datos</p>
+            <Icon name="flash_on" className="text-4xl mb-2 opacity-50" />
+            <p className="text-sm">Tests de potencia próximamente</p>
+            <p className="text-xs mt-1">Los valores son estimaciones basadas en tus 1RM</p>
           </div>
         </div>
       </div>
@@ -736,8 +670,9 @@ export default function AnalisisPage() {
   const router = useRouter()
   const [userData, setUserData] = useState<UserData | null>(null)
   const [loading, setLoading] = useState(true)
+  const [loadingData, setLoadingData] = useState(true)
   const [activeCategory, setActiveCategory] = useState<AnalisisCategory>('fuerza')
-  const [history, setHistory] = useState<EvaluationHistory[]>([])
+  const [analysisData, setAnalysisData] = useState<AnalysisData | null>(null)
 
   // Verificar autenticación
   useEffect(() => {
@@ -767,35 +702,27 @@ export default function AnalisisPage() {
     setLoading(false)
   }, [router])
 
-  // Cargar historial
+  // Cargar datos de análisis desde la API
   useEffect(() => {
     if (!userData?.id) return
     
-    const fetchHistory = async () => {
+    const fetchAnalysisData = async () => {
+      setLoadingData(true)
       try {
-        const response = await fetch(`/api/isometric?userId=${userData.id}`)
-        const data = await response.json()
+        const response = await fetch(`/api/analisis?userId=${userData.id}`)
+        const result = await response.json()
         
-        if (data.success && data.evaluations) {
-          const historyData: EvaluationHistory[] = data.evaluations.map((e: any) => ({
-            id: e.id,
-            date: e.test_date,
-            type: 'fuerza' as AnalisisCategory,
-            summary: `${e.muscle_evaluated} - ${e.side} - Fmax: ${e.fmax?.toFixed(1) || 0} kg`,
-            metrics: {
-              'Fmax': e.fmax || 0,
-              'RFD': e.rfd_max || 0,
-              'Tiempo': e.time_to_fmax || 0
-            }
-          }))
-          setHistory(historyData)
+        if (result.success && result.data) {
+          setAnalysisData(result.data)
         }
       } catch (error) {
-        console.error('Error loading history:', error)
+        console.error('Error loading analysis data:', error)
+      } finally {
+        setLoadingData(false)
       }
     }
     
-    fetchHistory()
+    fetchAnalysisData()
   }, [userData?.id])
 
   if (loading) {
@@ -852,11 +779,19 @@ export default function AnalisisPage() {
               </h3>
               <p className="text-xs text-slate-400">
                 Visualiza tu progreso en fuerza, resistencia, velocidad, flexibilidad y potencia. 
-                Compara tus resultados con valores normativos y recibe recomendaciones personalizadas.
+                Los datos se conectan directamente desde tus evaluaciones en Supabase.
               </p>
             </div>
           </div>
         </div>
+
+        {/* Loading indicator for data */}
+        {loadingData && (
+          <div className="flex items-center justify-center py-4 mb-4">
+            <Icon name="sync" className="text-[#13ec6d] animate-spin mr-2" />
+            <span className="text-sm text-slate-400">Cargando datos...</span>
+          </div>
+        )}
 
         {/* Category Tabs */}
         <div className="flex gap-2 mb-6 overflow-x-auto pb-2 scrollbar-hide">
@@ -904,11 +839,22 @@ export default function AnalisisPage() {
               </div>
 
               {/* Dynamic Content */}
-              {activeCategory === 'fuerza' && <FuerzaAnalysisPanel userId={userData?.id || ''} />}
-              {activeCategory === 'resistencia' && <ResistenciaAnalysisPanel />}
-              {activeCategory === 'velocidad' && <VelocidadAnalysisPanel />}
+              {activeCategory === 'fuerza' && (
+                <FuerzaAnalysisPanel 
+                  userId={userData?.id || ''} 
+                  data={analysisData?.fuerza || null} 
+                />
+              )}
+              {activeCategory === 'resistencia' && (
+                <ResistenciaAnalysisPanel data={analysisData?.resistencia || null} />
+              )}
+              {activeCategory === 'velocidad' && (
+                <VelocidadAnalysisPanel perfil={analysisData?.perfil || null} />
+              )}
               {activeCategory === 'flexibilidad' && <FlexibilidadAnalysisPanel />}
-              {activeCategory === 'potencia' && <PotenciaAnalysisPanel />}
+              {activeCategory === 'potencia' && (
+                <PotenciaAnalysisPanel perfil={analysisData?.perfil || null} />
+              )}
             </div>
           </div>
 
@@ -951,15 +897,59 @@ export default function AnalisisPage() {
               </h3>
               <div className="grid grid-cols-2 gap-3">
                 <div className="bg-[#102218] rounded-xl p-3 text-center">
-                  <p className="text-2xl font-bold text-[#13ec6d]">{history.length}</p>
-                  <p className="text-[10px] text-slate-400">Evaluaciones</p>
+                  <p className="text-2xl font-bold text-[#13ec6d]">
+                    {analysisData?.fuerza?.totalEvaluations || 0}
+                  </p>
+                  <p className="text-[10px] text-slate-400">Evaluaciones Fuerza</p>
                 </div>
                 <div className="bg-[#102218] rounded-xl p-3 text-center">
-                  <p className="text-2xl font-bold text-[#00f0ff]">5</p>
-                  <p className="text-[10px] text-slate-400">Categorías</p>
+                  <p className="text-2xl font-bold text-[#ec4899]">
+                    {analysisData?.resistencia?.totalEvaluations || 0}
+                  </p>
+                  <p className="text-[10px] text-slate-400">Evaluaciones Cardio</p>
+                </div>
+                <div className="bg-[#102218] rounded-xl p-3 text-center">
+                  <p className="text-2xl font-bold text-[#00f0ff]">
+                    {analysisData?.fuerza?.musclesEvaluated || 0}
+                  </p>
+                  <p className="text-[10px] text-slate-400">Músculos Evaluados</p>
+                </div>
+                <div className="bg-[#102218] rounded-xl p-3 text-center">
+                  <p className="text-2xl font-bold text-[#f59e0b]">
+                    {analysisData?.perfil?.rm?.total || 0}
+                  </p>
+                  <p className="text-[10px] text-slate-400">RM Total (kg)</p>
                 </div>
               </div>
             </div>
+
+            {/* Perfil Info */}
+            {analysisData?.perfil && (
+              <div className="mt-6 bg-[#193324]/50 rounded-2xl p-4 border border-white/10">
+                <h3 className="text-sm font-bold text-white mb-4 flex items-center gap-2">
+                  <Icon name="person" className="text-[#8b5cf6]" />
+                  Información del Perfil
+                </h3>
+                <div className="space-y-2 text-xs">
+                  <div className="flex justify-between">
+                    <span className="text-slate-400">Nivel:</span>
+                    <span className="text-white font-medium">{analysisData.perfil.nivelExperiencia || 'Sin definir'}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-400">Objetivo:</span>
+                    <span className="text-white font-medium">{analysisData.perfil.objetivo || 'Sin definir'}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-400">IMC:</span>
+                    <span className="text-white font-medium">{analysisData.perfil.imc?.toFixed(1) || '--'}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-400">FC Reposo:</span>
+                    <span className="text-white font-medium">{analysisData.perfil.fcReposo || '--'} bpm</span>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
@@ -976,7 +966,7 @@ export default function AnalisisPage() {
       </main>
 
       {/* Floating History Popup */}
-      <HistoryTimeline history={history} />
+      <HistoryPopup history={analysisData?.historial || []} />
     </div>
   )
 }
