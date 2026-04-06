@@ -271,7 +271,7 @@ const ENDURANCE_MICROCYCLE = [
 export default function HomePage() {
   const [loading, setLoading] = useState(true)
   const [user, setUser] = useState<UserData | null>(null)
-  const [activeTab, setActiveTab] = useState<'home' | 'evaluaciones' | 'planificacion' | 'perfil'>('home')
+  const [activeTab, setActiveTab] = useState<'home' | 'evaluaciones' | 'analisis' | 'planificacion' | 'perfil'>('home')
   const [planSubTab, setPlanSubTab] = useState<'fuerza' | 'resistencia'>('fuerza')
   
   // Estados para Login/Registro
@@ -4219,6 +4219,164 @@ export default function HomePage() {
             </div>
           </div>
         )}
+
+        {/* Tab: Análisis */}
+        {activeTab === 'analisis' && (
+          <div className="space-y-6">
+            {/* Header */}
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-xl font-bold text-white">Centro de Análisis</h2>
+                <p className="text-xs text-slate-400">Análisis integral del rendimiento deportivo</p>
+              </div>
+            </div>
+
+            {/* Quick Access Cards */}
+            <div className="grid grid-cols-2 gap-3">
+              {/* Fuerza */}
+              <button
+                onClick={() => window.location.href = '/analisis'}
+                className="bg-gradient-to-br from-red-500/20 to-red-600/10 rounded-2xl p-4 border border-red-500/30 text-left hover:border-red-500/50 transition-all"
+              >
+                <div className="flex items-center gap-2 mb-2">
+                  <div className="w-8 h-8 rounded-lg bg-red-500/20 flex items-center justify-center">
+                    <Icon name="fitness_center" className="text-red-400" />
+                  </div>
+                  <span className="text-sm font-bold text-white">Fuerza</span>
+                </div>
+                <p className="text-[10px] text-slate-400">Isométrica, dinámica, potencia</p>
+                <div className="mt-2 flex items-center gap-1">
+                  <span className="text-lg font-bold text-red-400">--</span>
+                  <span className="text-[10px] text-slate-500">kg promedio</span>
+                </div>
+              </button>
+
+              {/* Resistencia */}
+              <div className="bg-gradient-to-br from-pink-500/20 to-pink-600/10 rounded-2xl p-4 border border-pink-500/30 text-left opacity-60">
+                <div className="flex items-center gap-2 mb-2">
+                  <div className="w-8 h-8 rounded-lg bg-pink-500/20 flex items-center justify-center">
+                    <Icon name="favorite" className="text-pink-400" />
+                  </div>
+                  <span className="text-sm font-bold text-white">Resistencia</span>
+                </div>
+                <p className="text-[10px] text-slate-400">VO2max, umbral, FC</p>
+                <div className="mt-2 flex items-center gap-1">
+                  <span className="text-lg font-bold text-pink-400">--</span>
+                  <span className="text-[10px] text-slate-500">ml/kg/min</span>
+                </div>
+              </div>
+
+              {/* Velocidad */}
+              <div className="bg-gradient-to-br from-amber-500/20 to-amber-600/10 rounded-2xl p-4 border border-amber-500/30 text-left opacity-60">
+                <div className="flex items-center gap-2 mb-2">
+                  <div className="w-8 h-8 rounded-lg bg-amber-500/20 flex items-center justify-center">
+                    <Icon name="bolt" className="text-amber-400" />
+                  </div>
+                  <span className="text-sm font-bold text-white">Velocidad</span>
+                </div>
+                <p className="text-[10px] text-slate-400">Sprint, reacción, agilidad</p>
+                <div className="mt-2 flex items-center gap-1">
+                  <span className="text-lg font-bold text-amber-400">--</span>
+                  <span className="text-[10px] text-slate-500">km/h máx</span>
+                </div>
+              </div>
+
+              {/* Flexibilidad */}
+              <div className="bg-gradient-to-br from-violet-500/20 to-violet-600/10 rounded-2xl p-4 border border-violet-500/30 text-left opacity-60">
+                <div className="flex items-center gap-2 mb-2">
+                  <div className="w-8 h-8 rounded-lg bg-violet-500/20 flex items-center justify-center">
+                    <Icon name="self_improvement" className="text-violet-400" />
+                  </div>
+                  <span className="text-sm font-bold text-white">Flexibilidad</span>
+                </div>
+                <p className="text-[10px] text-slate-400">ROM, movilidad, elasticidad</p>
+                <div className="mt-2 flex items-center gap-1">
+                  <span className="text-lg font-bold text-violet-400">--</span>
+                  <span className="text-[10px] text-slate-500">% movilidad</span>
+                </div>
+              </div>
+
+              {/* Potencia */}
+              <div className="col-span-2 bg-gradient-to-br from-cyan-500/20 to-cyan-600/10 rounded-2xl p-4 border border-cyan-500/30 text-left opacity-60">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="flex items-center gap-2 mb-2">
+                      <div className="w-8 h-8 rounded-lg bg-cyan-500/20 flex items-center justify-center">
+                        <Icon name="flash_on" className="text-cyan-400" />
+                      </div>
+                      <span className="text-sm font-bold text-white">Potencia</span>
+                    </div>
+                    <p className="text-[10px] text-slate-400">Salto vertical, RSI, fuerza explosiva</p>
+                  </div>
+                  <div className="text-right">
+                    <span className="text-2xl font-bold text-cyan-400">--</span>
+                    <span className="text-[10px] text-slate-500 block">W pico</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Call to Action */}
+            <div className="bg-[#193324] rounded-2xl p-4 border border-[#13ec6d]/20">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-xl bg-[#13ec6d]/20 flex items-center justify-center">
+                  <Icon name="analytics" className="text-[#13ec6d] text-2xl" />
+                </div>
+                <div className="flex-1">
+                  <h3 className="text-sm font-bold text-white">Accede al Análisis Completo</h3>
+                  <p className="text-xs text-slate-400">Visualiza métricas detalladas, historial y comparativas</p>
+                </div>
+                <button
+                  onClick={() => window.location.href = '/analisis'}
+                  className="px-4 py-2 bg-[#13ec6d] text-[#102218] rounded-xl text-sm font-bold hover:bg-[#13ec6d]/90 transition-all"
+                >
+                  Ir al Análisis
+                </button>
+              </div>
+            </div>
+
+            {/* Recent Evaluations Summary */}
+            <div className="bg-[#193324] rounded-2xl p-4 border border-white/10">
+              <h3 className="text-sm font-bold text-white mb-3 flex items-center gap-2">
+                <Icon name="history" className="text-[#f59e0b]" />
+                Evaluaciones Recientes
+              </h3>
+              {evaluationHistory.length > 0 ? (
+                <div className="space-y-2">
+                  {evaluationHistory.slice(0, 3).map((eval_, i) => (
+                    <div key={i} className="flex items-center justify-between py-2 border-b border-white/5 last:border-0">
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-lg bg-red-500/20 flex items-center justify-center">
+                          <Icon name="fitness_center" className="text-red-400 text-sm" />
+                        </div>
+                        <div>
+                          <p className="text-xs font-medium text-white">{eval_.muscleEvaluated}</p>
+                          <p className="text-[10px] text-slate-400">{eval_.side}</p>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-sm font-bold text-[#13ec6d]">{eval_.fmax.toFixed(1)} kg</p>
+                        <p className="text-[10px] text-slate-400">{new Date(eval_.date).toLocaleDateString('es-ES')}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-xs text-slate-400 text-center py-4">
+                  No hay evaluaciones registradas. Realiza tu primera evaluación de fuerza.
+                </p>
+              )}
+              {evaluationHistory.length > 0 && (
+                <button
+                  onClick={() => window.location.href = '/analisis'}
+                  className="w-full mt-3 py-2 bg-white/5 rounded-xl text-xs text-slate-400 hover:text-white transition-colors"
+                >
+                  Ver todas las evaluaciones
+                </button>
+              )}
+            </div>
+          </div>
+        )}
       </main>
 
       {/* Bottom Navigation */}
@@ -4227,6 +4385,7 @@ export default function HomePage() {
           {[
             { id: 'home', icon: 'home', label: 'Inicio' },
             { id: 'evaluaciones', icon: 'assessment', label: 'Eval.' },
+            { id: 'analisis', icon: 'analytics', label: 'Análisis' },
             { id: 'planificacion', icon: 'event_note', label: 'Plan' },
             { id: 'perfil', icon: 'person', label: 'Perfil' },
           ].map((item) => (
