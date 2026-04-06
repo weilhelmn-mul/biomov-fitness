@@ -2,6 +2,13 @@
 
 import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
+import dynamic from 'next/dynamic'
+
+// Importar AttendanceModule de forma dinámica para evitar problemas de SSR
+const AttendanceModule = dynamic(
+  () => import('@/components/attendance/AttendanceModule').then(mod => mod.AttendanceModule),
+  { ssr: false }
+)
 
 // ============================================================================
 // TYPES
@@ -1609,122 +1616,17 @@ export default function HomePage() {
         {/* ======================== HOME TAB ======================== */}
         {activeTab === 'home' && (
           <div className="space-y-4">
-            {/* QR Scanner - Control de Asistencia */}
-            <div className="bg-[#193324] rounded-2xl p-4 border border-[#8b5cf6]/20">
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-2">
-                  <Icon name="qr_code_scanner" className="text-[#8b5cf6]" />
-                  <h3 className="text-sm font-bold text-white">Control de Asistencia</h3>
-                </div>
-                <div className="flex gap-1">
-                  <button 
-                    onClick={() => setScanMode('entrada')}
-                    className={`px-2 py-1 rounded-lg text-[10px] font-bold transition-all ${scanMode === 'entrada' ? 'bg-[#13ec6d] text-[#102218]' : 'bg-[#102218] text-slate-400'}`}
-                  >
-                    Entrada
-                  </button>
-                  <button 
-                    onClick={() => setScanMode('salida')}
-                    className={`px-2 py-1 rounded-lg text-[10px] font-bold transition-all ${scanMode === 'salida' ? 'bg-[#f59e0b] text-[#102218]' : 'bg-[#102218] text-slate-400'}`}
-                  >
-                    Salida
-                  </button>
-                </div>
-              </div>
-
-              {!showQRScanner ? (
-                <button 
-                  onClick={startQRScanner}
-                  className="w-full py-4 bg-gradient-to-r from-[#8b5cf6]/20 to-[#8b5cf6]/10 border border-[#8b5cf6]/30 rounded-xl flex flex-col items-center gap-2 hover:border-[#8b5cf6]/50 transition-all"
-                >
-                  <div className="w-16 h-16 rounded-xl bg-[#8b5cf6]/20 flex items-center justify-center border-2 border-dashed border-[#8b5cf6]/40">
-                    <Icon name="qr_code_scanner" className="text-3xl text-[#8b5cf6]" />
-                  </div>
-                  <span className="text-sm font-bold text-[#8b5cf6]">Escanear QR</span>
-                  <span className="text-[10px] text-slate-400">Toca para abrir la cámara</span>
-                </button>
-              ) : (
-                <div className="relative rounded-xl overflow-hidden bg-black">
-                  <video 
-                    ref={videoRef}
-                    autoPlay 
-                    playsInline 
-                    className="w-full h-48 object-cover"
-                  />
-                  
-                  {/* Scan overlay */}
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    {/* Corner frame */}
-                    <div className="relative w-48 h-48">
-                      {/* Top left */}
-                      <div className="absolute top-0 left-0 w-8 h-8 border-t-3 border-l-3 border-[#8b5cf6] rounded-tl-lg" />
-                      {/* Top right */}
-                      <div className="absolute top-0 right-0 w-8 h-8 border-t-3 border-r-3 border-[#8b5cf6] rounded-tr-lg" />
-                      {/* Bottom left */}
-                      <div className="absolute bottom-0 left-0 w-8 h-8 border-b-3 border-l-3 border-[#8b5cf6] rounded-bl-lg" />
-                      {/* Bottom right */}
-                      <div className="absolute bottom-0 right-0 w-8 h-8 border-b-3 border-r-3 border-[#8b5cf6] rounded-br-lg" />
-                      
-                      {/* Scanning line */}
-                      {scanStatus === 'scanning' && (
-                        <div 
-                          className="absolute left-2 right-2 h-0.5 bg-gradient-to-r from-transparent via-[#8b5cf6] to-transparent"
-                          style={{ top: `${scanningLine}%` }}
-                        />
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Success overlay */}
-                  {scanStatus === 'success' && (
-                    <div className="absolute inset-0 bg-[#13ec6d]/20 flex items-center justify-center">
-                      <div className="w-16 h-16 rounded-full bg-[#13ec6d] flex items-center justify-center">
-                        <Icon name="check" className="text-3xl text-white" />
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Status bar */}
-                  <div className="absolute bottom-0 left-0 right-0 p-2 bg-gradient-to-t from-black/80 to-transparent">
-                    <div className="flex items-center justify-between">
-                      <span className={`text-xs font-medium ${scanStatus === 'scanning' ? 'text-[#8b5cf6]' : scanStatus === 'success' ? 'text-[#13ec6d]' : 'text-slate-400'}`}>
-                        {scanStatus === 'scanning' ? 'Escaneando...' : scanStatus === 'success' ? '¡Registrado!' : 'Listo'}
-                      </span>
-                      <button onClick={stopQRScanner} className="text-xs text-red-400 font-medium">
-                        Cerrar
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Simulate button (for testing) */}
-              {showQRScanner && scanStatus === 'scanning' && (
-                <button 
-                  onClick={simulateScan}
-                  className="w-full mt-2 py-2 bg-[#8b5cf6]/20 border border-[#8b5cf6]/30 rounded-lg text-xs text-[#8b5cf6] font-medium hover:bg-[#8b5cf6]/30 transition-all"
-                >
-                  Simular escaneo
-                </button>
-              )}
-
-              {/* Recent scans */}
-              {lastScans.length > 0 && (
-                <div className="mt-3 space-y-1">
-                  <p className="text-[10px] text-slate-500 mb-2">Últimos registros:</p>
-                  {lastScans.map((scan, i) => (
-                    <div key={i} className="flex items-center gap-2 p-2 bg-[#102218] rounded-lg">
-                      <div className={`w-2 h-2 rounded-full ${scan.type === 'entrada' ? 'bg-[#13ec6d]' : 'bg-[#f59e0b]'}`} />
-                      <span className="text-xs text-white flex-1">{scan.name}</span>
-                      <span className="text-[10px] text-slate-500">{scan.time}</span>
-                      <span className={`text-[9px] px-1.5 py-0.5 rounded ${scan.type === 'entrada' ? 'bg-[#13ec6d]/20 text-[#13ec6d]' : 'bg-[#f59e0b]/20 text-[#f59e0b]'}`}>
-                        {scan.type}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
+            {/* Control de Asistencia con QR Scanner */}
+            {user && (
+              <AttendanceModule
+                usuarioId={user.id}
+                usuarioNombre={user.nombre_completo}
+                onSuccess={() => {
+                  // Refrescar datos si es necesario
+                  console.log('Asistencia registrada exitosamente')
+                }}
+              />
+            )}
 
             {/* Neural Disposition - Hexagonal Radar Chart */}
             <div className="bg-[#193324] rounded-2xl p-4 border border-[#13ec6d]/20 relative overflow-hidden">
