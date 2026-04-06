@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import dynamic from 'next/dynamic'
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 
 // Importar dashboard de forma dinámica para evitar problemas de SSR
 const IsometricStrengthDashboard = dynamic(
@@ -135,55 +136,106 @@ function MetricSummaryCard({ metric }: { metric: MetricCard }) {
 }
 
 // ============================================================================
-// COMPONENTE DE HISTORIAL
+// COMPONENTE DE HISTORIAL COLAPSABLE (POPUP STYLE)
 // ============================================================================
 
-function HistoryTimeline({ history }: { history: EvaluationHistory[] }) {
+function HistoryPopup({ history }: { history: EvaluationHistory[] }) {
+  const [isOpen, setIsOpen] = useState(false)
+  
   const formatDate = (dateStr: string) => {
     const date = new Date(dateStr)
     return date.toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' })
   }
 
-  if (history.length === 0) {
-    return (
-      <div className="flex flex-col items-center justify-center py-12 text-slate-400">
-        <Icon name="history" className="text-4xl mb-2 opacity-50" />
-        <p className="text-sm">No hay evaluaciones registradas</p>
-      </div>
-    )
-  }
-
   return (
-    <div className="space-y-3">
-      {history.map((item, index) => (
+    <>
+      {/* Floating Button */}
+      <button
+        onClick={() => setIsOpen(!isOpen)}
+        className={`fixed bottom-6 right-6 z-50 flex items-center gap-2 px-4 py-3 rounded-2xl shadow-2xl transition-all duration-300 ${
+          isOpen 
+            ? 'bg-[#193324] border border-[#f59e0b]/30' 
+            : 'bg-gradient-to-r from-[#f59e0b] to-[#ec4899] hover:scale-105'
+        }`}
+      >
+        <Icon 
+          name={isOpen ? 'close' : 'history'} 
+          className={isOpen ? 'text-[#f59e0b]' : 'text-white'} 
+        />
+        <span className={`text-sm font-bold ${isOpen ? 'text-white' : 'text-white'}`}>
+          {isOpen ? 'Cerrar' : `Historial (${history.length})`}
+        </span>
+      </button>
+
+      {/* Popup Panel */}
+      {isOpen && (
         <div 
-          key={item.id} 
-          className="bg-[#193324] rounded-xl p-4 border border-white/10 flex items-start gap-3"
+          className="fixed bottom-20 right-6 z-40 w-80 max-h-[60vh] bg-[#102218] rounded-2xl border border-white/10 shadow-2xl overflow-hidden animate-in slide-in-from-bottom-4 duration-300"
         >
-          <div 
-            className="w-10 h-10 rounded-lg flex items-center justify-center shrink-0"
-            style={{ backgroundColor: `${CATEGORIES[item.type].color}20` }}
-          >
-            <Icon name={CATEGORIES[item.type].icon} style={{ color: CATEGORIES[item.type].color }} />
+          {/* Header */}
+          <div className="bg-gradient-to-r from-[#f59e0b]/20 to-[#ec4899]/20 p-4 border-b border-white/10">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-[#f59e0b]/20 flex items-center justify-center">
+                <Icon name="history" className="text-[#f59e0b]" />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-white">Historial de Evaluaciones</h3>
+                <p className="text-[10px] text-slate-400">{history.length} evaluaciones registradas</p>
+              </div>
+            </div>
           </div>
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center justify-between mb-1">
-              <span className="text-sm font-bold text-white">{CATEGORIES[item.type].name}</span>
-              <span className="text-[10px] text-slate-400">{formatDate(item.date)}</span>
-            </div>
-            <p className="text-xs text-slate-400 mb-2">{item.summary}</p>
-            <div className="flex flex-wrap gap-2">
-              {Object.entries(item.metrics).slice(0, 3).map(([key, value]) => (
-                <span key={key} className="text-[10px] bg-white/5 px-2 py-1 rounded-full text-slate-300">
-                  {key}: {typeof value === 'number' ? value.toFixed(1) : value}
-                </span>
-              ))}
-            </div>
+
+          {/* Content */}
+          <div className="p-3 overflow-y-auto max-h-[calc(60vh-80px)]">
+            {history.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-8 text-slate-400">
+                <Icon name="history" className="text-4xl mb-2 opacity-50" />
+                <p className="text-sm">No hay evaluaciones</p>
+                <p className="text-[10px] mt-1">Realiza tu primera evaluación</p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {history.map((item, index) => (
+                  <div 
+                    key={item.id} 
+                    className="bg-[#193324] rounded-xl p-3 border border-white/10 hover:border-[#f59e0b]/30 transition-all cursor-pointer"
+                  >
+                    <div className="flex items-center gap-2 mb-2">
+                      <div 
+                        className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
+                        style={{ backgroundColor: `${CATEGORIES[item.type].color}20` }}
+                      >
+                        <Icon name={CATEGORIES[item.type].icon} className="text-sm" style={{ color: CATEGORIES[item.type].color }} />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-bold text-white">{CATEGORIES[item.type].name}</span>
+                          <span className="text-[10px] text-slate-400">{formatDate(item.date)}</span>
+                        </div>
+                        <p className="text-[10px] text-slate-400 truncate">{item.summary}</p>
+                      </div>
+                    </div>
+                    <div className="flex flex-wrap gap-1 ml-10">
+                      {Object.entries(item.metrics).slice(0, 3).map(([key, value]) => (
+                        <span key={key} className="text-[9px] bg-white/5 px-2 py-0.5 rounded-full text-slate-300">
+                          {key}: {typeof value === 'number' ? value.toFixed(1) : value}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
-      ))}
-    </div>
+      )}
+    </>
   )
+}
+
+// Keep HistoryTimeline for backward compatibility but use the new popup version
+function HistoryTimeline({ history }: { history: EvaluationHistory[] }) {
+  return <HistoryPopup history={history} />
 }
 
 // ============================================================================
@@ -862,17 +914,8 @@ export default function AnalisisPage() {
 
           {/* Sidebar */}
           <div className="lg:col-span-1">
-            {/* Historial Reciente */}
-            <div className="bg-[#193324]/50 rounded-2xl p-4 border border-white/10">
-              <h3 className="text-sm font-bold text-white mb-4 flex items-center gap-2">
-                <Icon name="history" className="text-[#f59e0b]" />
-                Historial de Evaluaciones
-              </h3>
-              <HistoryTimeline history={history} />
-            </div>
-
             {/* Quick Actions */}
-            <div className="mt-6 bg-[#193324]/50 rounded-2xl p-4 border border-white/10">
+            <div className="bg-[#193324]/50 rounded-2xl p-4 border border-white/10">
               <h3 className="text-sm font-bold text-white mb-4 flex items-center gap-2">
                 <Icon name="flash_on" className="text-[#00f0ff]" />
                 Acciones Rápidas
@@ -899,6 +942,24 @@ export default function AnalisisPage() {
                 </button>
               </div>
             </div>
+
+            {/* Stats Summary */}
+            <div className="mt-6 bg-[#193324]/50 rounded-2xl p-4 border border-white/10">
+              <h3 className="text-sm font-bold text-white mb-4 flex items-center gap-2">
+                <Icon name="analytics" className="text-[#13ec6d]" />
+                Resumen de Actividad
+              </h3>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="bg-[#102218] rounded-xl p-3 text-center">
+                  <p className="text-2xl font-bold text-[#13ec6d]">{history.length}</p>
+                  <p className="text-[10px] text-slate-400">Evaluaciones</p>
+                </div>
+                <div className="bg-[#102218] rounded-xl p-3 text-center">
+                  <p className="text-2xl font-bold text-[#00f0ff]">5</p>
+                  <p className="text-[10px] text-slate-400">Categorías</p>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -913,6 +974,9 @@ export default function AnalisisPage() {
           </button>
         </div>
       </main>
+
+      {/* Floating History Popup */}
+      <HistoryTimeline history={history} />
     </div>
   )
 }
