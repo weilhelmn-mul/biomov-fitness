@@ -5,29 +5,34 @@ import { createClient } from '@supabase/supabase-js'
 // These credentials are for the BIOMOV project
 // ============================================================================
 
-// Supabase credentials - using publishable key format
+// Supabase credentials
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://ysqlqyrxcqdfoagplkik.supabase.co'
 
-// Try multiple key formats - Supabase publishable keys work differently
-const SUPABASE_KEY = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY 
-  || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-  || 'sb_publishable_Ldw3nlZZtKYgR08HVbw6BQ_WzVvN9w_'
+// Server-side: Use SERVICE_ROLE_KEY for admin operations, fallback to ANON_KEY
+// Client-side: Use ANON_KEY (public, safe to expose)
+const getServiceKey = () => {
+  // Server-side: prefer service role key, then anon key
+  if (typeof window === 'undefined') {
+    return process.env.SUPABASE_SERVICE_ROLE_KEY 
+      || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+      || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlzcWxxeXJ4Y3FkZm9hZ3Bsa2lrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDI4NjY2MTUsImV4cCI6MjA1ODQ0MjYxNX0.QLj_FxK8VZ-ij0z_9_D5hL5v1c1YJYvA1N0vCmRpVdQ'
+  }
+  // Client-side: only use anon key
+  return process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+    || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlzcWxxeXJ4Y3FkZm9hZ3Bsa2lrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDI4NjY2MTUsImV4cCI6MjA1ODQ0MjYxNX0.QLj_FxK8VZ-ij0z_9_D5hL5v1c1YJYvA1N0vCmRpVdQ'
+}
 
-// Check if we're using a publishable key (starts with 'sb_publishable_')
-const isPublishableKey = SUPABASE_KEY.startsWith('sb_publishable_')
+const SUPABASE_KEY = getServiceKey()
 
-// Server-side Supabase client
-// Note: Publishable keys may need special handling
-export const supabase = isPublishableKey 
-  ? null // Publishable keys don't work with the standard client
-  : createClient(SUPABASE_URL, SUPABASE_KEY, {
-      auth: {
-        autoRefreshToken: false,
-        persistSession: false
-      }
-    })
+// Server-side Supabase client - always create it
+export const supabase = createClient(SUPABASE_URL, SUPABASE_KEY, {
+  auth: {
+    autoRefreshToken: false,
+    persistSession: false
+  }
+})
 
-// Direct fetch helper for publishable keys
+// Direct fetch helper for special cases
 export async function supabaseFetch<T = any>(
   table: string, 
   options: {
@@ -48,9 +53,13 @@ export async function supabaseFetch<T = any>(
   
   if (params.toString()) url += `?${params.toString()}`
   
+  // Use service role key for server-side operations if available
+  const key = (typeof window === 'undefined' && process.env.SUPABASE_SERVICE_ROLE_KEY) 
+    || SUPABASE_KEY
+  
   const headers: Record<string, string> = {
-    'apikey': SUPABASE_KEY,
-    'Authorization': `Bearer ${SUPABASE_KEY}`,
+    'apikey': key,
+    'Authorization': `Bearer ${key}`,
     'Content-Type': 'application/json'
   }
   
@@ -79,11 +88,10 @@ export async function supabaseFetch<T = any>(
 
 // Client-side Supabase client for Realtime
 export function createClientSupabase() {
-  if (isPublishableKey) {
-    console.warn('Publishable key used - Realtime features may not work')
-    return null
-  }
-  return createClient(SUPABASE_URL, SUPABASE_KEY, {
+  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+    || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlzcWxxeXJ4Y3FkZm9hZ3Bsa2lrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDI4NjY2MTUsImV4cCI6MjA1ODQ0MjYxNX0.QLj_FxK8VZ-ij0z_9_D5hL5v1c1YJYvA1N0vCmRpVdQ'
+  
+  return createClient(SUPABASE_URL, key, {
     auth: {
       persistSession: true
     },
