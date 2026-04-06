@@ -46,8 +46,7 @@ interface MuscleEvaluationData {
 
 // Solicitud completa de evaluación isométrica
 interface IsometricEvaluationRequest {
-  userId: string
-  athleteName?: string
+  userId: string                   // ID del usuario en la tabla 'usuarios'
   musculos: MuscleEvaluationData[]
   sessionDate?: string             // Fecha de la sesión de evaluación
   notes?: string
@@ -98,12 +97,12 @@ function createEvaluationRecord(
   side: SideType,
   metrics: IsometricMetrics,
   sessionDate: string,
-  athleteName?: string,
+  athleteName: string,  // SIEMPRE viene de nombre_completo de usuarios
   deviceInfo?: any
 ) {
   return {
-    athlete_id: null, // Se puede asociar a un atleta registrado
-    athlete_name: athleteName || null,
+    athlete_id: userId,  // ID del usuario de la tabla 'usuarios'
+    athlete_name: athleteName,  // nombre_completo de la tabla 'usuarios'
     muscle_evaluated: MUSCLE_CODE_MAP[muscleId] || muscleId,
     side,
     test_date: sessionDate,
@@ -152,6 +151,7 @@ export async function GET(request: NextRequest) {
     
     // Usar supabaseFetch para obtener evaluaciones
     const query: Record<string, string> = {
+      'athlete_id': `eq.${userId}`,  // Filtrar por athlete_id
       'order': 'test_date.desc',
       'limit': String(limit)
     }
@@ -185,7 +185,7 @@ export async function GET(request: NextRequest) {
       success: true, 
       evaluations: [], 
       musculos: [],
-      message: 'No hay evaluaciones isométricas registradas'
+      message: 'No hay evaluaciones isométricas registradas para este usuario'
     })
   } catch (error) {
     console.error('Error in GET isometric:', error)
@@ -254,13 +254,13 @@ function groupEvaluationsByMuscle(evaluations: any[]) {
 // ============================================================================
 // POST - Guardar nueva evaluación isométrica
 // Guarda cada músculo/lado como un registro individual en Supabase
+// IMPORTANTE: athlete_name siempre viene de nombre_completo de la tabla usuarios
 // ============================================================================
 export async function POST(request: NextRequest) {
   try {
     const body: IsometricEvaluationRequest = await request.json()
     const { 
       userId, 
-      athleteName, 
       musculos, 
       sessionDate, 
       notes,
@@ -269,17 +269,58 @@ export async function POST(request: NextRequest) {
     
     console.log('[ISOMETRIC API] Recibiendo datos:', { 
       userId, 
-      athleteName,
       musculosCount: musculos?.length 
     })
     
     if (!userId) {
-      return NextResponse.json({ error: 'userId requerido' }, { status: 400 })
+      return NextResponse.json({ 
+        success: false,
+        error: 'userId requerido - debe ser un ID válido de la tabla usuarios' 
+      }, { status: 400 })
     }
     
     if (!musculos || musculos.length === 0) {
-      return NextResponse.json({ error: 'No hay músculos para guardar' }, { status: 400 })
+      return NextResponse.json({ 
+        success: false,
+        error: 'No hay músculos para guardar' 
+      }, { status: 400 })
     }
+    
+    // ============================================================================
+    // OBTENER nombre_completo DE LA TABLA usuarios
+    // Esto asegura que athlete_name coincida exactamente con nombre_completo
+    // ============================================================================
+    const { data: userData, error: userError } = await supabaseFetch<any[]>('usuarios', {
+      select: 'id, nombre_completo, email',
+      query: {
+        'id': `eq.${userId}`,
+        'limit': '1'
+      }
+    })
+    
+    if (userError) {
+      console.error('[ISOMETRIC API] Error al buscar usuario:', userError)
+      return NextResponse.json({ 
+        success: false,
+        error: 'Error al verificar usuario en la base de datos',
+        details: userError
+      }, { status: 500 })
+    }
+    
+    if (!userData || userData.length === 0) {
+      return NextResponse.json({ 
+        success: false,
+        error: `Usuario con ID '${userId}' no encontrado en la tabla usuarios. El userId debe ser un ID válido de un usuario registrado.`
+      }, { status: 404 })
+    }
+    
+    const user = userData[0]
+    const athleteName = user.nombre_completo || user.email || 'Sin nombre'
+    
+    console.log('[ISOMETRIC API] Usuario verificado:', { 
+      id: user.id, 
+      nombre_completo: athleteName 
+    })
     
     // Fecha de la sesión (usar la proporcionada o la actual)
     const testDate = sessionDate || new Date().toISOString()
@@ -300,7 +341,7 @@ export async function POST(request: NextRequest) {
             'Derecho',
             lado.derecho,
             testDate,
-            athleteName,
+            athleteName,  // SIEMPRE de nombre_completo
             deviceInfo
           )
         )
@@ -316,7 +357,7 @@ export async function POST(request: NextRequest) {
             'Izquierdo',
             lado.izquierdo,
             testDate,
-            athleteName,
+            athleteName,  // SIEMPRE de nombre_completo
             deviceInfo
           )
         )
@@ -330,7 +371,7 @@ export async function POST(request: NextRequest) {
       }, { status: 400 })
     }
     
-    console.log(`[ISOMETRIC API] Insertando ${evaluationRecords.length} registros en Supabase`)
+    console.log(`[ISOMETRIC API] Insertando ${evaluationRecords.length} registros para usuario: ${athleteName}`)
     
     // Insertar en Supabase usando supabaseFetch
     const { data, error } = await supabaseFetch<any[]>('isometric_evaluations', {
@@ -349,7 +390,11 @@ export async function POST(request: NextRequest) {
         success: true, 
         evaluations: data, 
         count: data.length,
-        message: `${data.length} evaluaciones guardadas correctamente`
+        athlete: {
+          id: userId,
+          name: athleteName
+        },
+        message: `${data.length} evaluaciones guardadas correctamente para ${athleteName}`
       })
     }
     
