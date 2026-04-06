@@ -110,6 +110,8 @@ export async function POST(request: NextRequest) {
     const body: IsometricForceEvaluation = await request.json()
     
     console.log('[FORCE API] Recibiendo evaluación:', {
+      athleteId: body.athleteId,
+      athleteName: body.athleteName,
       muscle: body.muscleEvaluated,
       side: body.side,
       fmax: body.fmax,
@@ -117,14 +119,20 @@ export async function POST(request: NextRequest) {
     })
     
     // Validar campos requeridos
-    if (!body.muscleEvaluated || !body.side || !body.fmax) {
+    if (!body.muscleEvaluated || !body.side) {
       return NextResponse.json({ 
         success: false, 
-        error: 'Campos requeridos: muscleEvaluated, side, fmax' 
+        error: 'Campos requeridos: muscleEvaluated, side' 
       }, { status: 400 })
     }
     
-    // Preparar datos para insertar
+    if (!body.fmax || body.fmax === 0) {
+      return NextResponse.json({ 
+        success: false, 
+        error: 'Se requiere fuerza máxima (fmax) mayor a 0' 
+      }, { status: 400 })
+    }
+    
     // Validar si athleteId es un UUID válido
     const isValidUUID = (str: string) => {
       const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -133,13 +141,14 @@ export async function POST(request: NextRequest) {
     
     const evaluationData = {
       athlete_id: body.athleteId && isValidUUID(body.athleteId) ? body.athleteId : null,
-      athlete_name: body.athleteName || null,
+      athlete_name: body.athleteName || 'Usuario',
       muscle_evaluated: body.muscleEvaluated,
       side: body.side,
       unit: body.unit || 'kg',
+      test_date: new Date().toISOString(),
       
       // Métricas principales
-      fmax: body.fmax,
+      fmax: body.fmax || null,
       force_at_200ms: body.forceAt200ms || null,
       average_force: body.averageForce || null,
       test_duration: body.testDuration || null,
@@ -178,6 +187,13 @@ export async function POST(request: NextRequest) {
       notes: body.notes || null
     }
     
+    console.log('[FORCE API] Datos a insertar:', {
+      athlete_id: evaluationData.athlete_id,
+      athlete_name: evaluationData.athlete_name,
+      muscle: evaluationData.muscle_evaluated,
+      fmax: evaluationData.fmax
+    })
+    
     // Insertar en Supabase
     const { data, error } = await supabaseFetch<any>('isometric_evaluations', {
       method: 'POST',
@@ -188,7 +204,7 @@ export async function POST(request: NextRequest) {
       console.error('[FORCE API] Error inserting evaluation:', error)
       return NextResponse.json({ 
         success: false, 
-        error: error.message || JSON.stringify(error)
+        error: 'Error de base de datos: ' + (error.message || JSON.stringify(error))
       }, { status: 500 })
     }
     
