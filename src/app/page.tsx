@@ -274,6 +274,17 @@ export default function HomePage() {
   const [activeTab, setActiveTab] = useState<'home' | 'evaluaciones' | 'planificacion' | 'perfil'>('home')
   const [planSubTab, setPlanSubTab] = useState<'fuerza' | 'resistencia'>('fuerza')
   
+  // Estados para Login/Registro
+  const [authMode, setAuthMode] = useState<'login' | 'register'>('login')
+  const [authEmail, setAuthEmail] = useState('')
+  const [authPassword, setAuthPassword] = useState('')
+  const [authName, setAuthName] = useState('')
+  const [authDni, setAuthDni] = useState('')
+  const [authConfirmPassword, setAuthConfirmPassword] = useState('')
+  const [authLoading, setAuthLoading] = useState(false)
+  const [authError, setAuthError] = useState<string | null>(null)
+  const [authMessage, setAuthMessage] = useState<string | null>(null)
+  
   // Estados para el centro de evaluaciones
   const [evalType, setEvalType] = useState<'menu' | 'rom' | 'fuerza' | 'resistencia'>('menu')
   const [serialConnected, setSerialConnected] = useState(false)
@@ -1182,7 +1193,107 @@ export default function HomePage() {
   const handleLogout = () => {
     localStorage.removeItem('biomov_user')
     setUser(null)
-    window.location.href = '/auth/login'
+  }
+
+  // ============================================================================
+  // FUNCIONES DE AUTENTICACIÓN
+  // ============================================================================
+
+  const handleAuthLogin = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setAuthLoading(true)
+    setAuthError(null)
+    
+    if (!authEmail || !authPassword) {
+      setAuthError('Email y contraseña son requeridos')
+      setAuthLoading(false)
+      return
+    }
+    
+    try {
+      const response = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: authEmail, password: authPassword })
+      })
+      
+      const data = await response.json()
+      
+      if (data.success && data.user) {
+        if (!data.user.aprobado) {
+          setAuthError('Tu cuenta está pendiente de aprobación')
+          setAuthLoading(false)
+          return
+        }
+        
+        setUser(data.user)
+        localStorage.setItem('biomov_user', JSON.stringify(data.user))
+        
+        // Admin va al panel de administración
+        if (data.user.rol === 'admin' || data.user.rol === 'superadmin' || data.user.rol === 'super_admin') {
+          window.location.href = '/auth/login'
+        }
+      } else {
+        setAuthError(data.error || 'Credenciales inválidas')
+      }
+    } catch (e) {
+      setAuthError('Error de conexión')
+    }
+    
+    setAuthLoading(false)
+  }
+
+  const handleAuthRegister = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setAuthLoading(true)
+    setAuthError(null)
+    
+    if (!authName || !authEmail || !authPassword || !authDni) {
+      setAuthError('Completa todos los campos')
+      setAuthLoading(false)
+      return
+    }
+    
+    if (authPassword !== authConfirmPassword) {
+      setAuthError('Las contraseñas no coinciden')
+      setAuthLoading(false)
+      return
+    }
+    
+    if (authPassword.length < 6) {
+      setAuthError('La contraseña debe tener al menos 6 caracteres')
+      setAuthLoading(false)
+      return
+    }
+    
+    try {
+      const response = await fetch('/api/auth/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          nombre_completo: authName, 
+          email: authEmail, 
+          password: authPassword, 
+          dni: authDni 
+        })
+      })
+      
+      const data = await response.json()
+      
+      if (data.success) {
+        setAuthMessage('¡Registro exitoso! ' + (data.user?.rol === 'admin' ? 'Tu cuenta de administrador está lista.' : 'Tu cuenta está pendiente de aprobación.'))
+        setAuthMode('login')
+        setAuthName('')
+        setAuthDni('')
+        setAuthConfirmPassword('')
+      } else {
+        setAuthError(data.error || 'Error al registrar')
+      }
+    } catch (e) {
+      setAuthError('Error de conexión')
+    }
+    
+    setAuthLoading(false)
   }
 
   // ============================================================================
@@ -1229,16 +1340,16 @@ export default function HomePage() {
   if (!user) {
     return (
       <div className="min-h-screen bg-[#102218] flex flex-col">
-        <div className="flex-1 flex flex-col items-center justify-center p-6">
+        <div className="flex-1 flex flex-col items-center justify-center p-4 sm:p-6">
           {/* BIOMOV Logo - Circle with glowing dot in bottom-right corner */}
-          <div className="relative mb-10">
+          <div className="relative mb-6">
             {/* Outer glow effect */}
-            <div className="absolute inset-0 w-32 h-32 rounded-full bg-[#13ec6d]/40 blur-3xl scale-150 animate-pulse" />
-            <div className="absolute inset-0 w-32 h-32 rounded-full bg-[#13ec6d]/30 blur-2xl scale-125" />
-            <div className="absolute inset-0 w-32 h-32 rounded-full bg-[#00f0ff]/20 blur-xl scale-110" />
+            <div className="absolute inset-0 w-24 h-24 rounded-full bg-[#13ec6d]/40 blur-3xl scale-150 animate-pulse" />
+            <div className="absolute inset-0 w-24 h-24 rounded-full bg-[#13ec6d]/30 blur-2xl scale-125" />
+            <div className="absolute inset-0 w-24 h-24 rounded-full bg-[#00f0ff]/20 blur-xl scale-110" />
             
             {/* Main circle with logo image inside */}
-            <div className="relative w-32 h-32 rounded-full bg-gradient-to-br from-[#13ec6d] via-[#0ea849] to-[#13ec6d] p-1 shadow-2xl shadow-[#13ec6d]/70">
+            <div className="relative w-24 h-24 rounded-full bg-gradient-to-br from-[#13ec6d] via-[#0ea849] to-[#13ec6d] p-1 shadow-2xl shadow-[#13ec6d]/70">
               <img 
                 src="/biomov-logo.jpg" 
                 alt="BIOMOV" 
@@ -1248,42 +1359,188 @@ export default function HomePage() {
             
             {/* Small glowing dot - bottom right corner */}
             <div className="absolute -bottom-1 -right-1">
-              <div className="absolute w-4 h-4 rounded-full bg-[#13ec6d]/40 blur-lg animate-pulse" style={{transform: 'translate(-50%, -50%)', left: '50%', top: '50%', animationDuration: '3s'}} />
-              <div className="absolute w-4 h-4 rounded-full bg-[#13ec6d]/60 blur-md animate-ping opacity-60" style={{transform: 'translate(-50%, -50%)', left: '50%', top: '50%'}} />
-              <div className="relative w-4 h-4 rounded-full bg-[#13ec6d] shadow-lg shadow-[#13ec6d]" style={{animation: 'pulse 1.5s ease-in-out infinite'}} />
+              <div className="absolute w-3 h-3 rounded-full bg-[#13ec6d]/40 blur-lg animate-pulse" style={{transform: 'translate(-50%, -50%)', left: '50%', top: '50%', animationDuration: '3s'}} />
+              <div className="absolute w-3 h-3 rounded-full bg-[#13ec6d]/60 blur-md animate-ping opacity-60" style={{transform: 'translate(-50%, -50%)', left: '50%', top: '50%'}} />
+              <div className="relative w-3 h-3 rounded-full bg-[#13ec6d] shadow-lg shadow-[#13ec6d]" style={{animation: 'pulse 1.5s ease-in-out infinite'}} />
             </div>
           </div>
           
-          <h1 className="text-5xl font-black text-white mb-2 tracking-tight">
+          <h1 className="text-4xl sm:text-5xl font-black text-white mb-1 tracking-tight">
             <span className="bg-gradient-to-r from-[#13ec6d] via-[#00f0ff] to-[#13ec6d] bg-clip-text text-transparent">BIOMOV</span>
           </h1>
-          <p className="text-[#13ec6d] text-lg font-semibold mb-2">Entrenamiento Inteligente</p>
-          <p className="text-slate-400 text-sm mb-10 max-w-xs text-center">Ciencia aplicada al movimiento humano. Potencia tu rendimiento.</p>
+          <p className="text-[#13ec6d] text-base sm:text-lg font-semibold mb-1">Entrenamiento Inteligente</p>
+          <p className="text-slate-400 text-xs sm:text-sm mb-6 max-w-xs text-center">Ciencia aplicada al movimiento humano</p>
 
-          <div className="grid grid-cols-2 gap-3 w-full max-w-sm mb-10">
+          {/* Features Grid */}
+          <div className="grid grid-cols-4 gap-2 w-full max-w-md mb-6">
             {[
-              { icon: 'monitoring', label: 'Evaluación Isométrica', color: '#13ec6d' },
-              { icon: 'rotate_right', label: 'Rango de Movimiento', color: '#00f0ff' },
-              { icon: 'event_note', label: 'Planificación', color: '#f59e0b' },
-              { icon: 'analytics', label: 'Métricas Avanzadas', color: '#8b5cf6' },
+              { icon: 'monitoring', label: 'Isométrica', color: '#13ec6d' },
+              { icon: 'rotate_right', label: 'ROM', color: '#00f0ff' },
+              { icon: 'event_note', label: 'Planes', color: '#f59e0b' },
+              { icon: 'analytics', label: 'Métricas', color: '#8b5cf6' },
             ].map((feature) => (
-              <div key={feature.label} className="bg-[#193324]/50 rounded-xl p-4 border border-white/5 flex flex-col items-center gap-2">
-                <Icon name={feature.icon} className="text-2xl" style={{ color: feature.color }} />
-                <span className="text-xs text-slate-400 text-center">{feature.label}</span>
+              <div key={feature.label} className="bg-[#193324]/50 rounded-xl p-3 border border-white/5 flex flex-col items-center gap-1">
+                <Icon name={feature.icon} className="text-xl" style={{ color: feature.color }} />
+                <span className="text-[10px] text-slate-400 text-center">{feature.label}</span>
               </div>
             ))}
           </div>
 
-          <div className="w-full max-w-sm space-y-3">
-            <button onClick={() => window.location.href = '/auth/login'} className="w-full py-4 bg-[#13ec6d] text-[#102218] rounded-xl font-bold text-lg hover:bg-[#13ec6d]/90 transition-all shadow-lg shadow-[#13ec6d]/20">
-              Iniciar Sesión
-            </button>
-            <button onClick={() => window.location.href = '/auth/login'} className="w-full py-4 bg-transparent border border-[#13ec6d]/30 text-[#13ec6d] rounded-xl font-bold hover:bg-[#13ec6d]/10 transition-all">
-              Crear Cuenta
-            </button>
+          {/* Login/Register Card */}
+          <div className="w-full max-w-sm bg-[#193324] rounded-2xl border border-[#13ec6d]/20 p-4 shadow-xl">
+            {/* Tabs */}
+            <div className="flex bg-[#102218] rounded-xl p-1 mb-4">
+              <button
+                onClick={() => { setAuthMode('login'); setAuthError(null); setAuthMessage(null); }}
+                className={`flex-1 py-2 px-3 rounded-lg text-sm font-bold transition-all ${
+                  authMode === 'login' ? 'bg-[#13ec6d] text-[#102218]' : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                Iniciar Sesión
+              </button>
+              <button
+                onClick={() => { setAuthMode('register'); setAuthError(null); setAuthMessage(null); }}
+                className={`flex-1 py-2 px-3 rounded-lg text-sm font-bold transition-all ${
+                  authMode === 'register' ? 'bg-[#13ec6d] text-[#102218]' : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                Registrarse
+              </button>
+            </div>
+
+            {/* Login Form */}
+            {authMode === 'login' && (
+              <form onSubmit={handleAuthLogin} className="space-y-3">
+                <div>
+                  <label className="text-xs text-[#92c9a9] font-medium mb-1 block">Email</label>
+                  <input
+                    type="email"
+                    value={authEmail}
+                    onChange={(e) => setAuthEmail(e.target.value)}
+                    placeholder="tu@email.com"
+                    className="w-full px-4 py-3 bg-[#102218] border border-white/10 rounded-xl text-white placeholder-slate-500 focus:border-[#13ec6d] focus:outline-none text-sm"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="text-xs text-[#92c9a9] font-medium mb-1 block">Contraseña</label>
+                  <input
+                    type="password"
+                    value={authPassword}
+                    onChange={(e) => setAuthPassword(e.target.value)}
+                    placeholder="••••••••"
+                    className="w-full px-4 py-3 bg-[#102218] border border-white/10 rounded-xl text-white placeholder-slate-500 focus:border-[#13ec6d] focus:outline-none text-sm"
+                    required
+                  />
+                </div>
+
+                {authError && (
+                  <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-3 text-red-400 text-xs text-center">
+                    {authError}
+                  </div>
+                )}
+
+                {authMessage && (
+                  <div className="bg-[#13ec6d]/10 border border-[#13ec6d]/30 rounded-lg p-3 text-[#13ec6d] text-xs text-center">
+                    {authMessage}
+                  </div>
+                )}
+
+                <button
+                  type="submit"
+                  disabled={authLoading}
+                  className="w-full bg-[#13ec6d] hover:bg-[#13ec6d]/90 text-[#102218] font-bold py-3 px-4 rounded-xl transition-all shadow-[0_0_15px_rgba(19,236,109,0.3)] disabled:opacity-50 text-sm"
+                >
+                  {authLoading ? 'Cargando...' : 'Iniciar Sesión'}
+                </button>
+              </form>
+            )}
+
+            {/* Register Form */}
+            {authMode === 'register' && (
+              <form onSubmit={handleAuthRegister} className="space-y-3">
+                <div>
+                  <label className="text-xs text-[#92c9a9] font-medium mb-1 block">Nombre Completo</label>
+                  <input
+                    type="text"
+                    value={authName}
+                    onChange={(e) => setAuthName(e.target.value)}
+                    placeholder="Tu nombre"
+                    className="w-full px-4 py-2.5 bg-[#102218] border border-white/10 rounded-xl text-white placeholder-slate-500 focus:border-[#13ec6d] focus:outline-none text-sm"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="text-xs text-[#92c9a9] font-medium mb-1 block">DNI / Cédula</label>
+                  <input
+                    type="text"
+                    value={authDni}
+                    onChange={(e) => setAuthDni(e.target.value)}
+                    placeholder="12345678"
+                    className="w-full px-4 py-2.5 bg-[#102218] border border-white/10 rounded-xl text-white placeholder-slate-500 focus:border-[#13ec6d] focus:outline-none text-sm"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="text-xs text-[#92c9a9] font-medium mb-1 block">Email</label>
+                  <input
+                    type="email"
+                    value={authEmail}
+                    onChange={(e) => setAuthEmail(e.target.value)}
+                    placeholder="tu@email.com"
+                    className="w-full px-4 py-2.5 bg-[#102218] border border-white/10 rounded-xl text-white placeholder-slate-500 focus:border-[#13ec6d] focus:outline-none text-sm"
+                    required
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="text-xs text-[#92c9a9] font-medium mb-1 block">Contraseña</label>
+                    <input
+                      type="password"
+                      value={authPassword}
+                      onChange={(e) => setAuthPassword(e.target.value)}
+                      placeholder="••••••••"
+                      className="w-full px-4 py-2.5 bg-[#102218] border border-white/10 rounded-xl text-white placeholder-slate-500 focus:border-[#13ec6d] focus:outline-none text-sm"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs text-[#92c9a9] font-medium mb-1 block">Confirmar</label>
+                    <input
+                      type="password"
+                      value={authConfirmPassword}
+                      onChange={(e) => setAuthConfirmPassword(e.target.value)}
+                      placeholder="••••••••"
+                      className="w-full px-4 py-2.5 bg-[#102218] border border-white/10 rounded-xl text-white placeholder-slate-500 focus:border-[#13ec6d] focus:outline-none text-sm"
+                      required
+                    />
+                  </div>
+                </div>
+
+                {authError && (
+                  <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-3 text-red-400 text-xs text-center">
+                    {authError}
+                  </div>
+                )}
+
+                <button
+                  type="submit"
+                  disabled={authLoading}
+                  className="w-full bg-[#13ec6d] hover:bg-[#13ec6d]/90 text-[#102218] font-bold py-3 px-4 rounded-xl transition-all shadow-[0_0_15px_rgba(19,236,109,0.3)] disabled:opacity-50 text-sm"
+                >
+                  {authLoading ? 'Registrando...' : 'Crear Cuenta'}
+                </button>
+              </form>
+            )}
           </div>
         </div>
-        <div className="p-6 text-center">
+        
+        {/* Footer */}
+        <div className="p-4 text-center">
           <p className="text-slate-600 text-xs">© 2026 BIOMOV • Powered by Science</p>
         </div>
       </div>
