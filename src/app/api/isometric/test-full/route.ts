@@ -4,6 +4,11 @@ import { supabaseFetch } from '@/lib/supabase'
 // ============================================================================
 // RUTA DE PRUEBA - Inserta datos con TODAS las métricas llenas
 // GET /api/isometric/test-full
+// 
+// Parámetros:
+// - userId: ID del usuario existente en la tabla 'usuarios'
+// - athlete: Nombre del atleta (solo si no se especifica userId)
+// - muscles: Número de músculos a evaluar (default: 5)
 // ============================================================================
 
 // Generador de curva de fuerza simulada
@@ -111,8 +116,62 @@ const MUSCLE_BASE_FORCE: Record<string, number> = {
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
-    const athleteName = searchParams.get('athlete') || 'Atleta de Prueba'
-    const muscleCount = parseInt(searchParams.get('muscles') || '5') // Número de músculos a evaluar
+    const userId = searchParams.get('userId') // ID del usuario en tabla 'usuarios'
+    const athleteNameParam = searchParams.get('athlete') // Nombre manual (solo si no hay userId)
+    const muscleCount = parseInt(searchParams.get('muscles') || '5')
+    
+    // Variables para el atleta
+    let athleteId: string | null = null
+    let athleteName: string = athleteNameParam || 'Atleta de Prueba'
+    
+    // Si se especifica userId, buscar el usuario en la tabla 'usuarios'
+    if (userId) {
+      const { data: user, error: userError } = await supabaseFetch<any[]>('usuarios', {
+        select: 'id, nombre_completo, email, rol',
+        query: {
+          'id': `eq.${userId}`,
+          'limit': '1'
+        }
+      })
+      
+      if (userError) {
+        return NextResponse.json({ 
+          success: false, 
+          error: 'Error al buscar usuario: ' + (userError.message || JSON.stringify(userError))
+        }, { status: 500 })
+      }
+      
+      if (!user || user.length === 0) {
+        return NextResponse.json({ 
+          success: false, 
+          error: `Usuario con ID '${userId}' no encontrado en la tabla 'usuarios'`
+        }, { status: 404 })
+      }
+      
+      athleteId = user[0].id
+      athleteName = user[0].nombre_completo || user[0].email || 'Sin nombre'
+      
+      console.log(`[TEST-FULL] Usuario encontrado: ${athleteName} (ID: ${athleteId})`)
+    } else {
+      // Si no hay userId, obtener un usuario aleatorio aprobado
+      const { data: users, error: usersError } = await supabaseFetch<any[]>('usuarios', {
+        select: 'id, nombre_completo, email, rol',
+        query: {
+          'aprobado': 'eq.true',
+          'limit': '10'
+        }
+      })
+      
+      if (!usersError && users && users.length > 0) {
+        // Seleccionar un usuario aleatorio
+        const randomUser = users[Math.floor(Math.random() * users.length)]
+        athleteId = randomUser.id
+        athleteName = randomUser.nombre_completo || randomUser.email || 'Sin nombre'
+        console.log(`[TEST-FULL] Usuario aleatorio seleccionado: ${athleteName} (ID: ${athleteId})`)
+      } else {
+        console.log('[TEST-FULL] No se encontraron usuarios aprobados, usando nombre manual:', athleteName)
+      }
+    }
     
     // Seleccionar músculos aleatorios para la prueba
     const allMuscles = Object.keys(MUSCLE_BASE_FORCE)
@@ -143,8 +202,8 @@ export async function GET(request: NextRequest) {
       // Crear registro para lado derecho
       const { galga_max: _, galga_avg: __, ...rightMetricsClean } = metricsRight
       evaluationRecords.push({
-        athlete_id: null,
-        athlete_name: athleteName,
+        athlete_id: athleteId,           // ID del usuario de la tabla 'usuarios'
+        athlete_name: athleteName,       // nombre_completo de la tabla 'usuarios'
         muscle_evaluated: muscleCode,
         side: 'Derecho',
         test_date: testDate,
@@ -166,8 +225,8 @@ export async function GET(request: NextRequest) {
       // Crear registro para lado izquierdo
       const { galga_max: ___, galga_avg: ____, ...leftMetricsClean } = metricsLeft
       evaluationRecords.push({
-        athlete_id: null,
-        athlete_name: athleteName,
+        athlete_id: athleteId,           // ID del usuario de la tabla 'usuarios'
+        athlete_name: athleteName,       // nombre_completo de la tabla 'usuarios'
         muscle_evaluated: muscleCode,
         side: 'Izquierdo',
         test_date: testDate,
@@ -188,6 +247,7 @@ export async function GET(request: NextRequest) {
     }
     
     console.log(`[TEST-FULL] Insertando ${evaluationRecords.length} registros con métricas completas`)
+    console.log('[TEST-FULL] Athlete:', athleteName, '| ID:', athleteId)
     console.log('[TEST-FULL] Músculos:', selectedMuscles)
     
     // Insertar en Supabase
@@ -211,14 +271,20 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       success: true,
       message: `Prueba exitosa: ${evaluationRecords.length} registros insertados con TODAS las métricas`,
+      athlete: {
+        id: athleteId,
+        name: athleteName,
+        source: userId ? 'userId parameter' : 'random user from database'
+      },
       summary: {
-        athlete: athleteName,
         testDate,
         musclesEvaluated: selectedMuscles,
         totalRecords: evaluationRecords.length,
         recordsPerMuscle: 2
       },
       exampleRecord: exampleRecord ? {
+        athlete_id: exampleRecord.athlete_id,
+        athlete_name: exampleRecord.athlete_name,
         muscle: exampleRecord.muscle_evaluated,
         side: exampleRecord.side,
         fmax: exampleRecord.fmax,
