@@ -2,37 +2,25 @@ import { createClient } from '@supabase/supabase-js'
 
 // ============================================================================
 // SUPABASE CONFIGURATION
-// These credentials are for the BIOMOV project
 // ============================================================================
 
-// Supabase credentials
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://ysqlqyrxcqdfoagplkik.supabase.co'
 
-// Server-side: Use SERVICE_ROLE_KEY for admin operations, fallback to ANON_KEY
-// Client-side: Use ANON_KEY (public, safe to expose)
-const getServiceKey = () => {
-  // Server-side: prefer service role key, then anon key
-  if (typeof window === 'undefined') {
-    return process.env.SUPABASE_SERVICE_ROLE_KEY 
-      || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-      || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlzcWxxeXJ4Y3FkZm9hZ3Bsa2lrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDI4NjY2MTUsImV4cCI6MjA1ODQ0MjYxNX0.QLj_FxK8VZ-ij0z_9_D5hL5v1c1YJYvA1N0vCmRpVdQ'
-  }
-  // Client-side: only use anon key
-  return process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-    || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlzcWxxeXJ4Y3FkZm9hZ3Bsa2lrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDI4NjY2MTUsImV4cCI6MjA1ODQ0MjYxNX0.QLj_FxK8VZ-ij0z_9_D5hL5v1c1YJYvA1N0vCmRpVdQ'
-}
+// Use anon key for both client and server (works with RLS)
+const getAnonKey = () => process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY 
+  || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlzcWxxeXJ4Y3FkZm9hZ3Bsa2lrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM2Nzc1MjcsImV4cCI6MjA4OTI1MzUyN30.bQGb_1XMNzwV0jf0SujWsv8xM1_X7rU33vrJi5S1-sM'
 
-const SUPABASE_KEY = getServiceKey()
+const SUPABASE_ANON_KEY = getAnonKey()
 
-// Server-side Supabase client - always create it
-export const supabase = createClient(SUPABASE_URL, SUPABASE_KEY, {
+// Server-side Supabase client
+export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   auth: {
     autoRefreshToken: false,
     persistSession: false
   }
 })
 
-// Direct fetch helper for special cases
+// Direct fetch helper
 export async function supabaseFetch<T = any>(
   table: string, 
   options: {
@@ -44,7 +32,6 @@ export async function supabaseFetch<T = any>(
 ): Promise<{ data: T | null; error: any }> {
   const { method = 'GET', query = {}, body, select } = options
   
-  // Build URL with query params
   let url = `${SUPABASE_URL}/rest/v1/${table}`
   const params = new URLSearchParams()
   
@@ -53,13 +40,9 @@ export async function supabaseFetch<T = any>(
   
   if (params.toString()) url += `?${params.toString()}`
   
-  // Use service role key for server-side operations if available
-  const key = (typeof window === 'undefined' && process.env.SUPABASE_SERVICE_ROLE_KEY) 
-    || SUPABASE_KEY
-  
   const headers: Record<string, string> = {
-    'apikey': key,
-    'Authorization': `Bearer ${key}`,
+    'apikey': SUPABASE_ANON_KEY,
+    'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
     'Content-Type': 'application/json'
   }
   
@@ -88,10 +71,7 @@ export async function supabaseFetch<T = any>(
 
 // Client-side Supabase client for Realtime
 export function createClientSupabase() {
-  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-    || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlzcWxxeXJ4Y3FkZm9hZ3Bsa2lrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDI4NjY2MTUsImV4cCI6MjA1ODQ0MjYxNX0.QLj_FxK8VZ-ij0z_9_D5hL5v1c1YJYvA1N0vCmRpVdQ'
-  
-  return createClient(SUPABASE_URL, key, {
+  return createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
     auth: {
       persistSession: true
     },
