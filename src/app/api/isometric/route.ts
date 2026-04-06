@@ -162,6 +162,8 @@ export async function POST(request: NextRequest) {
     const body: IsometricEvaluationRequest = await request.json()
     const { userId, musculos, indiceGlobal, desequilibrios } = body
     
+    console.log('[ISOMETRIC API] Recibiendo datos:', { userId, musculosCount: musculos?.length, indiceGlobal })
+    
     if (!userId) {
       return NextResponse.json({ error: 'userId requerido' }, { status: 400 })
     }
@@ -169,15 +171,16 @@ export async function POST(request: NextRequest) {
     // Crear registro de evaluación
     const evaluationData = {
       user_id: userId,
-      musculos_data: JSON.stringify(musculos),
+      musculos_data: musculos,
       indice_global: indiceGlobal.valor,
       tren_superior: indiceGlobal.trenSuperior,
       core: indiceGlobal.core,
       tren_inferior: indiceGlobal.trenInferior,
       simetria_general: indiceGlobal.simetriaGeneral,
-      desequilibrios: JSON.stringify(desequilibrios),
-      created_at: new Date().toISOString()
+      desequilibrios: desequilibrios
     }
+    
+    console.log('[ISOMETRIC API] Datos a insertar:', evaluationData)
     
     // Intentar con Supabase primero
     if (supabase) {
@@ -188,12 +191,27 @@ export async function POST(request: NextRequest) {
           .select()
           .single()
         
+        console.log('[ISOMETRIC API] Supabase response:', { data, error })
+        
         if (!error && data) {
-          return NextResponse.json({ success: true, evaluation: data })
+          return NextResponse.json({ success: true, evaluation: data, count: musculos.length })
         }
-      } catch (e) {
-        console.log('[ISOMETRIC API] Supabase insert failed, using Prisma')
+        
+        if (error) {
+          console.error('[ISOMETRIC API] Supabase error:', error)
+          return NextResponse.json({ 
+            error: 'Error de Supabase: ' + error.message,
+            details: error
+          }, { status: 500 })
+        }
+      } catch (e: any) {
+        console.error('[ISOMETRIC API] Supabase exception:', e)
+        return NextResponse.json({ 
+          error: 'Excepción de Supabase: ' + e.message 
+        }, { status: 500 })
       }
+    } else {
+      console.log('[ISOMETRIC API] Supabase client is null')
     }
     
     // Fallback a Prisma
@@ -220,8 +238,10 @@ export async function POST(request: NextRequest) {
     })
     
     return NextResponse.json({ success: true, evaluation })
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error in POST isometric:', error)
-    return NextResponse.json({ error: 'Error al guardar evaluación' }, { status: 500 })
+    return NextResponse.json({ 
+      error: 'Error al guardar evaluación: ' + error.message 
+    }, { status: 500 })
   }
 }
