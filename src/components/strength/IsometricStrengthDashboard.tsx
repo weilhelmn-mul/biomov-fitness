@@ -8,16 +8,43 @@ import {
 } from 'recharts'
 
 // ============================================================================
-// TYPES
+// TYPES - Adaptados a la estructura de Supabase
 // ============================================================================
 
 type Lado = 'R' | 'L'
 type RegionCuerpo = 'upper' | 'core' | 'lower'
 type ClasificacionAsimetria = 'optimo' | 'leve' | 'moderado' | 'riesgo'
 
+// Métricas detalladas de evaluación isométrica (una sola galga)
+interface IsometricMetrics {
+  fmax?: number                    // Fuerza máxima (kg)
+  force_at_200ms?: number          // Fuerza a los 200ms
+  average_force?: number           // Fuerza promedio
+  test_duration?: number           // Duración del test (segundos)
+  time_to_fmax?: number            // Tiempo hasta Fmax (ms)
+  time_to_50fmax?: number          // Tiempo hasta 50% Fmax
+  time_to_90fmax?: number          // Tiempo hasta 90% Fmax
+  rfd_max?: number                 // RFD máximo (kg/s)
+  rfd_50ms?: number                // RFD a 50ms
+  rfd_100ms?: number               // RFD a 100ms
+  rfd_150ms?: number               // RFD a 150ms
+  rfd_200ms?: number               // RFD a 200ms
+  tau?: number                     // Constante de tiempo
+  galga_max?: number               // Valor máximo de la galga
+  galga_avg?: number               // Valor promedio de la galga
+  fatigue_index?: number           // Índice de fatiga
+  force_curve?: number[]           // Curva de fuerza (array de puntos)
+}
+
 interface FuerzaBilateral {
   R: number
   L: number
+}
+
+// Métricas bilaterales detalladas
+interface MetricasBilaterales {
+  R: IsometricMetrics
+  L: IsometricMetrics
 }
 
 interface MusculoEvaluado {
@@ -26,8 +53,9 @@ interface MusculoEvaluado {
   nombreCorto: string
   region: RegionCuerpo
   subgrupo: string
-  fuerza: FuerzaBilateral
-  pesoNormativo?: number // Valor de referencia para normalización
+  fuerza: FuerzaBilateral           // Para compatibilidad con visualización simple
+  metricas?: MetricasBilaterales   // Métricas detalladas opcionales
+  pesoNormativo?: number           // Valor de referencia para normalización
 }
 
 interface IndiceFuerzaIsometricaGlobal {
@@ -508,7 +536,7 @@ export default function IsometricStrengthDashboard({
     if (onMusculosChange) onMusculosChange(limpios)
   }
   
-  // Función para guardar en Supabase
+  // Función para guardar en Supabase (formato individual por músculo/lado)
   const guardarEnSupabase = async () => {
     if (!userId || musculosEvaluados === 0) return
     
@@ -516,33 +544,54 @@ export default function IsometricStrengthDashboard({
     setSaveMessage(null)
     
     try {
+      // Transformar datos al formato esperado por la API
+      const musculosData = musculos
+        .filter(m => m.fuerza.R > 0 || m.fuerza.L > 0)
+        .map(m => ({
+          muscleId: m.id,
+          muscleName: m.nombre,
+          lado: {
+            derecho: {
+              fmax: m.fuerza.R,
+              // Si hay métricas detalladas, incluirlas
+              ...(m.metricas?.R || {})
+            },
+            izquierdo: {
+              fmax: m.fuerza.L,
+              // Si hay métricas detalladas, incluirlas
+              ...(m.metricas?.L || {})
+            }
+          }
+        }))
+      
       // Si hay callback externo, usarlo
       if (onSave) {
         await onSave(musculos, indiceGlobal, desequilibrios)
         setSaveMessage({ type: 'success', text: 'Evaluación guardada correctamente' })
       } else {
-        // Llamada directa a la API
+        // Llamada directa a la API con el nuevo formato
         const response = await fetch('/api/isometric', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             userId,
-            musculos: musculos.map(m => ({ id: m.id, fuerza: m.fuerza })),
-            indiceGlobal: {
-              valor: indiceGlobal.valor,
-              trenSuperior: indiceGlobal.trenSuperior,
-              core: indiceGlobal.core,
-              trenInferior: indiceGlobal.trenInferior,
-              simetriaGeneral: indiceGlobal.simetriaGeneral
-            },
-            desequilibrios
+            musculos: musculosData,
+            sessionDate: new Date().toISOString(),
+            deviceInfo: {
+              model: 'BIOMOV-ForceSensor-v1',
+              samplingRate: 50
+            }
           })
         })
         
         const data = await response.json()
         
         if (data.success) {
-          setSaveMessage({ type: 'success', text: `${musculosEvaluados} músculos guardados en Supabase` })
+          const count = data.count || musculosEvaluados * 2
+          setSaveMessage({ 
+            type: 'success', 
+            text: `${count} evaluaciones guardadas (${musculosEvaluados} músculos × 2 lados)` 
+          })
         } else {
           setSaveMessage({ type: 'error', text: data.error || 'Error al guardar' })
         }
@@ -830,5 +879,7 @@ export type {
   MusculoEvaluado, 
   IndiceFuerzaIsometricaGlobal, 
   DesequilibrioDetectado,
-  FuerzaBilateral
+  FuerzaBilateral,
+  IsometricMetrics,
+  MetricasBilaterales
 }

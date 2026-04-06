@@ -5,22 +5,85 @@ import { createClient } from '@supabase/supabase-js'
 // These credentials are for the BIOMOV project
 // ============================================================================
 
-// Hardcoded credentials for immediate functionality
-// In production, these should come from environment variables
+// Supabase credentials - using publishable key format
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://ysqlqyrxcqdfoagplkik.supabase.co'
-const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlzcWxxeXJ4Y3FkZm9hZ3Bsa2lrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM2Nzc1MjcsImV4cCI6MjA4OTI1MzUyN30.bQGb_1XMNzwV0jf0SujWsv8xM1_X7rU33vrJi5S1-sM'
+
+// Try multiple key formats - Supabase publishable keys work differently
+const SUPABASE_KEY = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY 
+  || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  || 'sb_publishable_Ldw3nlZZtKYgR08HVbw6BQ_WzVvN9w_'
+
+// Check if we're using a publishable key (starts with 'sb_publishable_')
+const isPublishableKey = SUPABASE_KEY.startsWith('sb_publishable_')
 
 // Server-side Supabase client
-export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-  auth: {
-    autoRefreshToken: false,
-    persistSession: false
+// Note: Publishable keys may need special handling
+export const supabase = isPublishableKey 
+  ? null // Publishable keys don't work with the standard client
+  : createClient(SUPABASE_URL, SUPABASE_KEY, {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false
+      }
+    })
+
+// Direct fetch helper for publishable keys
+export async function supabaseFetch<T = any>(
+  table: string, 
+  options: {
+    method?: 'GET' | 'POST' | 'PATCH' | 'DELETE'
+    query?: Record<string, string>
+    body?: any
+    select?: string
+  } = {}
+): Promise<{ data: T | null; error: any }> {
+  const { method = 'GET', query = {}, body, select } = options
+  
+  // Build URL with query params
+  let url = `${SUPABASE_URL}/rest/v1/${table}`
+  const params = new URLSearchParams()
+  
+  if (select) params.append('select', select)
+  Object.entries(query).forEach(([key, value]) => params.append(key, value))
+  
+  if (params.toString()) url += `?${params.toString()}`
+  
+  const headers: Record<string, string> = {
+    'apikey': SUPABASE_KEY,
+    'Authorization': `Bearer ${SUPABASE_KEY}`,
+    'Content-Type': 'application/json'
   }
-})
+  
+  if (method === 'POST') {
+    headers['Prefer'] = 'return=representation'
+  }
+  
+  try {
+    const response = await fetch(url, {
+      method,
+      headers,
+      body: body ? JSON.stringify(body) : undefined
+    })
+    
+    const data = await response.json()
+    
+    if (!response.ok) {
+      return { data: null, error: data }
+    }
+    
+    return { data, error: null }
+  } catch (error) {
+    return { data: null, error }
+  }
+}
 
 // Client-side Supabase client for Realtime
 export function createClientSupabase() {
-  return createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+  if (isPublishableKey) {
+    console.warn('Publishable key used - Realtime features may not work')
+    return null
+  }
+  return createClient(SUPABASE_URL, SUPABASE_KEY, {
     auth: {
       persistSession: true
     },

@@ -1,54 +1,139 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { supabase } from '@/lib/supabase'
-import { prisma } from '@/lib/prisma'
+import { supabase, supabaseFetch } from '@/lib/supabase'
 
-// Tipos
-interface MuscleForceData {
-  id: string
-  fuerza: { R: number; L: number }
+// ============================================================================
+// TIPOS - Adaptados a la estructura de la tabla isometric_evaluations en Supabase
+// ============================================================================
+
+// Tipo de lado según el ENUM en Supabase: 'Izquierdo' | 'Derecho' | 'Bilateral'
+type SideType = 'Izquierdo' | 'Derecho' | 'Bilateral'
+type ForceUnit = 'kg' | 'N'
+
+// Métricas detalladas de una evaluación isométrica
+interface IsometricMetrics {
+  fmax?: number                    // Fuerza máxima (kg)
+  force_at_200ms?: number          // Fuerza a los 200ms
+  average_force?: number           // Fuerza promedio
+  test_duration?: number           // Duración del test (segundos)
+  time_to_fmax?: number            // Tiempo hasta Fmax (ms)
+  time_to_50fmax?: number          // Tiempo hasta 50% Fmax (ms)
+  time_to_90fmax?: number          // Tiempo hasta 90% Fmax (ms)
+  rfd_max?: number                 // RFD máximo (kg/s)
+  rfd_50ms?: number                // RFD a 50ms
+  rfd_100ms?: number               // RFD a 100ms
+  rfd_150ms?: number               // RFD a 150ms
+  rfd_200ms?: number               // RFD a 200ms
+  tau?: number                     // Constante de tiempo
+  force_modeled?: number           // Fuerza modelada
+  galga_max?: number               // Valor máximo de la galga (solo una galga)
+  galga_avg?: number               // Valor promedio de la galga
+  fatigue_index?: number           // Índice de fatiga
+  symmetry_index?: number          // Índice de simetría
+  force_curve?: number[]           // Curva de fuerza (array de puntos)
+  sampling_rate?: number           // Tasa de muestreo (Hz)
+  calibration_factor?: number      // Factor de calibración
 }
 
+// Datos de un músculo evaluado (ambos lados)
+interface MuscleEvaluationData {
+  muscleId: string                 // ID del músculo (ej: 'pectoral_mayor')
+  muscleName: string               // Nombre del músculo
+  lado: {
+    derecho: IsometricMetrics      // Métricas del lado derecho
+    izquierdo: IsometricMetrics    // Métricas del lado izquierdo
+  }
+}
+
+// Solicitud completa de evaluación isométrica
 interface IsometricEvaluationRequest {
   userId: string
-  musculos: MuscleForceData[]
-  indiceGlobal: {
-    valor: number
-    trenSuperior: number
-    core: number
-    trenInferior: number
-    simetriaGeneral: number
+  athleteName?: string
+  musculos: MuscleEvaluationData[]
+  sessionDate?: string             // Fecha de la sesión de evaluación
+  notes?: string
+  deviceInfo?: {
+    model?: string
+    firmware?: string
+    samplingRate?: number
   }
-  desequilibrios: Array<{
-    musculoId: string
-    musculoNombre: string
-    ladoDominante: string
-    diferenciaPorcentaje: number
-    clasificacion: string
-    recomendacion: string
-  }>
 }
 
-// Mapa de nombres de grupos musculares a IDs del frontend
-const MUSCLE_ID_MAP: Record<string, string> = {
-  'Pectoral Mayor': 'pectoral_mayor',
-  'Dorsal Ancho': 'dorsal_ancho',
-  'Trapecio Medio/Inferior': 'trapecio',
-  'Deltoide Anterior': 'deltoide_anterior',
-  'Deltoide Medio': 'deltoide_medio',
-  'Deltoide Posterior': 'deltoide_posterior',
-  'Bíceps Braquial': 'biceps_braquial',
-  'Tríceps Braquial': 'triceps_braquial',
-  'Recto Abdominal': 'recto_abdominal',
-  'Oblicuos': 'oblicuos',
-  'Erectores Espinales': 'erectores_espinales',
-  'Glúteo Mayor': 'gluteo_mayor',
-  'Glúteo Medio': 'gluteo_medio',
-  'Cuádriceps': 'cuadriceps',
-  'Isquiotibiales': 'isquiotibiales',
-  'Aductores': 'aductores',
-  'Gastrocnemio': 'gastrocnemio',
-  'Sóleo': 'soleo',
-  'Tibial Anterior': 'tibial_anterior',
+// Respuesta de la API
+interface IsometricEvaluationResponse {
+  success: boolean
+  evaluations?: any[]
+  count?: number
+  error?: string
+  details?: any
+}
+
+// Mapa de nombres de grupos musculares a códigos para Supabase
+const MUSCLE_CODE_MAP: Record<string, string> = {
+  'pectoral_mayor': 'pectoral',
+  'dorsal_ancho': 'dorsal',
+  'trapecio': 'trapecio',
+  'deltoide_anterior': 'deltoide_ant',
+  'deltoide_medio': 'deltoide_med',
+  'deltoide_posterior': 'deltoide_post',
+  'biceps_braquial': 'biceps',
+  'triceps_braquial': 'triceps',
+  'recto_abdominal': 'abdominal',
+  'oblicuos': 'oblicuos',
+  'erectores_espinales': 'erector_spinae',
+  'gluteo_mayor': 'glute_max',
+  'gluteo_medio': 'glute_med',
+  'cuadriceps': 'quads',
+  'isquiotibiales': 'hamstrings',
+  'aductores': 'adductors',
+  'gastrocnemio': 'gastrocnemius',
+  'soleo': 'soleus',
+  'tibial_anterior': 'tibialis_ant',
+}
+
+// Función helper para convertir evaluación a formato Supabase
+function createEvaluationRecord(
+  userId: string,
+  muscleId: string,
+  muscleName: string,
+  side: SideType,
+  metrics: IsometricMetrics,
+  sessionDate: string,
+  athleteName?: string,
+  deviceInfo?: any
+) {
+  return {
+    athlete_id: null, // Se puede asociar a un atleta registrado
+    athlete_name: athleteName || null,
+    muscle_evaluated: MUSCLE_CODE_MAP[muscleId] || muscleId,
+    side,
+    test_date: sessionDate,
+    unit: 'kg' as ForceUnit,
+    fmax: metrics.fmax || null,
+    force_at_200ms: metrics.force_at_200ms || null,
+    average_force: metrics.average_force || null,
+    test_duration: metrics.test_duration || null,
+    time_to_fmax: metrics.time_to_fmax || null,
+    time_to_50fmax: metrics.time_to_50fmax || null,
+    time_to_90fmax: metrics.time_to_90fmax || null,
+    rfd_max: metrics.rfd_max || null,
+    rfd_50ms: metrics.rfd_50ms || null,
+    rfd_100ms: metrics.rfd_100ms || null,
+    rfd_150ms: metrics.rfd_150ms || null,
+    rfd_200ms: metrics.rfd_200ms || null,
+    tau: metrics.tau || null,
+    force_modeled: metrics.force_modeled || null,
+    galga1_max: metrics.galga_max || null,    // Una sola galga
+    galga1_avg: metrics.galga_avg || null,    // Una sola galga
+    galga2_max: null,  // No se usa
+    galga2_avg: null,  // No se usa
+    fatigue_index: metrics.fatigue_index || null,
+    symmetry_index: metrics.symmetry_index || null,
+    sampling_rate: metrics.sampling_rate || 50,
+    calibration_factor: metrics.calibration_factor || null,
+    force_curve: metrics.force_curve ? JSON.parse(JSON.stringify(metrics.force_curve)) : null,
+    device_info: deviceInfo || null,
+    notes: null,
+  }
 }
 
 // ============================================================================
@@ -58,95 +143,49 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
     const userId = searchParams.get('userId')
+    const muscleCode = searchParams.get('muscle')
+    const limit = parseInt(searchParams.get('limit') || '50')
     
     if (!userId) {
       return NextResponse.json({ error: 'userId requerido' }, { status: 400 })
     }
     
-    // Intentar con Supabase primero
-    if (supabase) {
-      try {
-        const { data, error } = await supabase
-          .from('isometric_evaluations')
-          .select('*')
-          .eq('user_id', userId)
-          .order('created_at', { ascending: false })
-          .limit(10)
-        
-        if (!error && data && data.length > 0) {
-          return NextResponse.json({ success: true, evaluations: data })
-        }
-      } catch (e) {
-        console.log('[ISOMETRIC API] Supabase failed, using Prisma')
-      }
+    // Usar supabaseFetch para obtener evaluaciones
+    const query: Record<string, string> = {
+      'order': 'test_date.desc',
+      'limit': String(limit)
     }
     
-    // Fallback a Prisma - obtener resultados de tests agrupados por músculo
-    if (!prisma) {
-      return NextResponse.json({ success: true, evaluations: [], musculos: [] })
+    if (muscleCode) {
+      query['muscle_evaluated'] = `eq.${muscleCode}`
     }
     
-    // Obtener todos los resultados del usuario
-    const results = await prisma.testResult.findMany({
-      where: { userId },
-      include: {
-        MuscleGroup: true,
-        IsometricTest: true
-      },
-      orderBy: { date: 'desc' }
+    const { data, error } = await supabaseFetch<any[]>('isometric_evaluations', {
+      select: '*',
+      query
     })
     
-    // Si no hay resultados, devolver array vacío
-    if (results.length === 0) {
+    if (error) {
+      console.error('[ISOMETRIC API] Supabase error:', error)
+    }
+    
+    if (data && data.length > 0) {
+      // Agrupar evaluaciones por músculo y sesión
+      const groupedData = groupEvaluationsByMuscle(data)
       return NextResponse.json({ 
         success: true, 
-        evaluations: [], 
-        musculos: [],
-        message: 'No hay evaluaciones isométricas registradas'
+        evaluations: data,
+        musculos: groupedData,
+        totalRecords: data.length
       })
     }
     
-    // Agrupar por grupo muscular y lado
-    const muscleData: Record<string, { R: number; L: number; name: string }> = {}
-    
-    for (const result of results) {
-      const muscleName = result.MuscleGroup?.name
-      if (!muscleName) continue
-      
-      const muscleId = MUSCLE_ID_MAP[muscleName] || muscleName.toLowerCase().replace(/\s+/g, '_')
-      
-      if (!muscleData[muscleId]) {
-        muscleData[muscleId] = { R: 0, L: 0, name: muscleName }
-      }
-      
-      if (result.side === 'R' && result.value > muscleData[muscleId].R) {
-        muscleData[muscleId].R = result.value
-      } else if (result.side === 'L' && result.value > muscleData[muscleId].L) {
-        muscleData[muscleId].L = result.value
-      }
-    }
-    
-    // Convertir a formato esperado por el frontend
-    const musculos = Object.entries(muscleData).map(([id, data]) => ({
-      id,
-      nombre: data.name,
-      fuerza: { R: data.R, L: data.L }
-    }))
-    
-    // Obtener la última fecha de evaluación
-    const lastEvaluation = await prisma.evaluacion.findFirst({
-      where: { 
-        userId,
-        tipoEvaluacion: 'isometrica'
-      },
-      orderBy: { fechaEvaluacion: 'desc' }
-    })
-    
+    // Sin datos
     return NextResponse.json({ 
       success: true, 
-      evaluations: lastEvaluation ? [lastEvaluation] : [],
-      musculos,
-      totalResults: results.length
+      evaluations: [], 
+      musculos: [],
+      message: 'No hay evaluaciones isométricas registradas'
     })
   } catch (error) {
     console.error('Error in GET isometric:', error)
@@ -154,93 +193,183 @@ export async function GET(request: NextRequest) {
   }
 }
 
+// Función para agrupar evaluaciones por músculo
+function groupEvaluationsByMuscle(evaluations: any[]) {
+  const muscleMap: Record<string, { 
+    id: string
+    nombre: string
+    fuerza: { R: number; L: number }
+    evaluaciones: any[]
+  }> = {}
+  
+  const codeToName: Record<string, string> = {
+    'pectoral': 'Pectoral Mayor',
+    'dorsal': 'Dorsal Ancho',
+    'trapecio': 'Trapecio',
+    'deltoide_ant': 'Deltoide Anterior',
+    'deltoide_med': 'Deltoide Medio',
+    'deltoide_post': 'Deltoide Posterior',
+    'biceps': 'Bíceps Braquial',
+    'triceps': 'Tríceps Braquial',
+    'abdominal': 'Recto Abdominal',
+    'oblicuos': 'Oblicuos',
+    'erector_spinae': 'Erectores Espinales',
+    'glute_max': 'Glúteo Mayor',
+    'glute_med': 'Glúteo Medio',
+    'quads': 'Cuádriceps',
+    'hamstrings': 'Isquiotibiales',
+    'adductors': 'Aductores',
+    'gastrocnemius': 'Gastrocnemio',
+    'soleus': 'Sóleo',
+    'tibialis_ant': 'Tibial Anterior',
+  }
+  
+  for (const evaluacion of evaluations) {
+    const muscleCode = evaluacion.muscle_evaluated
+    if (!muscleCode) continue
+    
+    if (!muscleMap[muscleCode]) {
+      muscleMap[muscleCode] = {
+        id: muscleCode,
+        nombre: codeToName[muscleCode] || muscleCode,
+        fuerza: { R: 0, L: 0 },
+        evaluaciones: []
+      }
+    }
+    
+    // Actualizar fuerza máxima por lado
+    const fmax = evaluacion.fmax || 0
+    if (evaluacion.side === 'Derecho' && fmax > muscleMap[muscleCode].fuerza.R) {
+      muscleMap[muscleCode].fuerza.R = fmax
+    } else if (evaluacion.side === 'Izquierdo' && fmax > muscleMap[muscleCode].fuerza.L) {
+      muscleMap[muscleCode].fuerza.L = fmax
+    }
+    
+    muscleMap[muscleCode].evaluaciones.push(evaluacion)
+  }
+  
+  return Object.values(muscleMap)
+}
+
 // ============================================================================
 // POST - Guardar nueva evaluación isométrica
+// Guarda cada músculo/lado como un registro individual en Supabase
 // ============================================================================
 export async function POST(request: NextRequest) {
   try {
     const body: IsometricEvaluationRequest = await request.json()
-    const { userId, musculos, indiceGlobal, desequilibrios } = body
+    const { 
+      userId, 
+      athleteName, 
+      musculos, 
+      sessionDate, 
+      notes,
+      deviceInfo 
+    } = body
     
-    console.log('[ISOMETRIC API] Recibiendo datos:', { userId, musculosCount: musculos?.length, indiceGlobal })
+    console.log('[ISOMETRIC API] Recibiendo datos:', { 
+      userId, 
+      athleteName,
+      musculosCount: musculos?.length 
+    })
     
     if (!userId) {
       return NextResponse.json({ error: 'userId requerido' }, { status: 400 })
     }
     
-    // Crear registro de evaluación
-    const evaluationData = {
-      user_id: userId,
-      musculos_data: musculos,
-      indice_global: indiceGlobal.valor,
-      tren_superior: indiceGlobal.trenSuperior,
-      core: indiceGlobal.core,
-      tren_inferior: indiceGlobal.trenInferior,
-      simetria_general: indiceGlobal.simetriaGeneral,
-      desequilibrios: desequilibrios
+    if (!musculos || musculos.length === 0) {
+      return NextResponse.json({ error: 'No hay músculos para guardar' }, { status: 400 })
     }
     
-    console.log('[ISOMETRIC API] Datos a insertar:', evaluationData)
+    // Fecha de la sesión (usar la proporcionada o la actual)
+    const testDate = sessionDate || new Date().toISOString()
     
-    // Intentar con Supabase primero
-    if (supabase) {
-      try {
-        const { data, error } = await supabase
-          .from('isometric_evaluations')
-          .insert(evaluationData)
-          .select()
-          .single()
-        
-        console.log('[ISOMETRIC API] Supabase response:', { data, error })
-        
-        if (!error && data) {
-          return NextResponse.json({ success: true, evaluation: data, count: musculos.length })
-        }
-        
-        if (error) {
-          console.error('[ISOMETRIC API] Supabase error:', error)
-          return NextResponse.json({ 
-            error: 'Error de Supabase: ' + error.message,
-            details: error
-          }, { status: 500 })
-        }
-      } catch (e: any) {
-        console.error('[ISOMETRIC API] Supabase exception:', e)
-        return NextResponse.json({ 
-          error: 'Excepción de Supabase: ' + e.message 
-        }, { status: 500 })
+    // Crear registros para cada músculo y lado
+    const evaluationRecords: any[] = []
+    
+    for (const musculo of musculos) {
+      const { muscleId, muscleName, lado } = musculo
+      
+      // Crear registro para lado derecho si tiene datos
+      if (lado.derecho && (lado.derecho.fmax || lado.derecho.galga_max)) {
+        evaluationRecords.push(
+          createEvaluationRecord(
+            userId,
+            muscleId,
+            muscleName,
+            'Derecho',
+            lado.derecho,
+            testDate,
+            athleteName,
+            deviceInfo
+          )
+        )
       }
-    } else {
-      console.log('[ISOMETRIC API] Supabase client is null')
+      
+      // Crear registro para lado izquierdo si tiene datos
+      if (lado.izquierdo && (lado.izquierdo.fmax || lado.izquierdo.galga_max)) {
+        evaluationRecords.push(
+          createEvaluationRecord(
+            userId,
+            muscleId,
+            muscleName,
+            'Izquierdo',
+            lado.izquierdo,
+            testDate,
+            athleteName,
+            deviceInfo
+          )
+        )
+      }
     }
     
-    // Fallback a Prisma
-    if (!prisma) {
+    if (evaluationRecords.length === 0) {
+      return NextResponse.json({ 
+        error: 'No hay datos de fuerza para guardar',
+        success: false 
+      }, { status: 400 })
+    }
+    
+    console.log(`[ISOMETRIC API] Insertando ${evaluationRecords.length} registros en Supabase`)
+    
+    // Insertar en Supabase usando supabaseFetch
+    const { data, error } = await supabaseFetch<any[]>('isometric_evaluations', {
+      method: 'POST',
+      body: evaluationRecords
+    })
+    
+    console.log('[ISOMETRIC API] Supabase response:', { 
+      success: !error, 
+      count: data?.length,
+      error: error?.message 
+    })
+    
+    if (!error && data) {
       return NextResponse.json({ 
         success: true, 
-        evaluation: { id: 'local-' + Date.now(), ...evaluationData }
+        evaluations: data, 
+        count: data.length,
+        message: `${data.length} evaluaciones guardadas correctamente`
       })
     }
     
-    const evaluation = await prisma.evaluacion.create({
-      data: {
-        id: 'isometric-' + Date.now(),
-        userId,
-        tipoEvaluacion: 'isometrica',
-        fuerzaMaximaKg: indiceGlobal.valor,
-        simetriaPorcentaje: indiceGlobal.simetriaGeneral,
-        observaciones: JSON.stringify({
-          musculos,
-          indiceGlobal,
-          desequilibrios
-        })
-      }
-    })
+    if (error) {
+      console.error('[ISOMETRIC API] Supabase error:', error)
+      return NextResponse.json({ 
+        success: false,
+        error: 'Error de Supabase: ' + (error.message || JSON.stringify(error)),
+        details: error
+      }, { status: 500 })
+    }
     
-    return NextResponse.json({ success: true, evaluation })
+    return NextResponse.json({ 
+      success: false,
+      error: 'Error desconocido al guardar'
+    }, { status: 500 })
   } catch (error: any) {
     console.error('Error in POST isometric:', error)
     return NextResponse.json({ 
+      success: false,
       error: 'Error al guardar evaluación: ' + error.message 
     }, { status: 500 })
   }
