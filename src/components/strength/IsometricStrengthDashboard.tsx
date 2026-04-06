@@ -449,16 +449,22 @@ interface IsometricStrengthDashboardProps {
   musculosIniciales?: MusculoEvaluado[]
   onMusculosChange?: (musculos: MusculoEvaluado[]) => void
   onIndiceChange?: (indice: IndiceFuerzaIsometricaGlobal) => void
+  onSave?: (musculos: MusculoEvaluado[], indice: IndiceFuerzaIsometricaGlobal, desequilibrios: DesequilibrioDetectado[]) => Promise<void>
+  userId?: string
 }
 
 export default function IsometricStrengthDashboard({
   musculosIniciales = MUSCULOS_ISOMETRICOS,
   onMusculosChange,
-  onIndiceChange
+  onIndiceChange,
+  onSave,
+  userId
 }: IsometricStrengthDashboardProps) {
   const [musculos, setMusculos] = useState<MusculoEvaluado[]>(musculosIniciales)
   const [regionActiva, setRegionActiva] = useState<RegionCuerpo | 'all'>('all')
   const [vista, setVista] = useState<'radar' | 'barras' | 'asimetrias'>('radar')
+  const [saving, setSaving] = useState(false)
+  const [saveMessage, setSaveMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null)
   
   // Cálculos derivados
   const indiceGlobal = useMemo(() => calcularIndiceFuerzaGlobal(musculos), [musculos])
@@ -500,6 +506,53 @@ export default function IsometricStrengthDashboard({
     const limpios = musculos.map(m => ({ ...m, fuerza: { R: 0, L: 0 } }))
     setMusculos(limpios)
     if (onMusculosChange) onMusculosChange(limpios)
+  }
+  
+  // Función para guardar en Supabase
+  const guardarEnSupabase = async () => {
+    if (!userId || musculosEvaluados === 0) return
+    
+    setSaving(true)
+    setSaveMessage(null)
+    
+    try {
+      // Si hay callback externo, usarlo
+      if (onSave) {
+        await onSave(musculos, indiceGlobal, desequilibrios)
+        setSaveMessage({ type: 'success', text: 'Evaluación guardada correctamente' })
+      } else {
+        // Llamada directa a la API
+        const response = await fetch('/api/isometric', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userId,
+            musculos: musculos.map(m => ({ id: m.id, fuerza: m.fuerza })),
+            indiceGlobal: {
+              valor: indiceGlobal.valor,
+              trenSuperior: indiceGlobal.trenSuperior,
+              core: indiceGlobal.core,
+              trenInferior: indiceGlobal.trenInferior,
+              simetriaGeneral: indiceGlobal.simetriaGeneral
+            },
+            desequilibrios
+          })
+        })
+        
+        const data = await response.json()
+        
+        if (data.success) {
+          setSaveMessage({ type: 'success', text: `${musculosEvaluados} músculos guardados en Supabase` })
+        } else {
+          setSaveMessage({ type: 'error', text: data.error || 'Error al guardar' })
+        }
+      }
+    } catch (error) {
+      console.error('Error guardando:', error)
+      setSaveMessage({ type: 'error', text: 'Error de conexión' })
+    } finally {
+      setSaving(false)
+    }
   }
   
   // Helpers
@@ -665,6 +718,64 @@ export default function IsometricStrengthDashboard({
               </div>
             ))}
           </div>
+        </div>
+      )}
+      
+      {/* Panel de guardado en Supabase */}
+      {musculosEvaluados > 0 && (
+        <div className="bg-[#193324] rounded-2xl p-4 border border-[#13ec6d]/20">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-[#13ec6d]/20 flex items-center justify-center">
+                <Icono name="cloud_upload" className="text-[#13ec6d] text-xl" />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-white">Guardar en Supabase</h3>
+                <p className="text-xs text-slate-400">{musculosEvaluados} músculos listos para sincronizar</p>
+              </div>
+            </div>
+            <button
+              onClick={guardarEnSupabase}
+              disabled={saving || !userId}
+              className={`px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-2 transition-all ${
+                saving 
+                  ? 'bg-slate-600 text-slate-400 cursor-wait'
+                  : userId
+                    ? 'bg-[#13ec6d] text-[#102218] hover:bg-[#13ec6d]/90'
+                    : 'bg-slate-600 text-slate-400 cursor-not-allowed'
+              }`}
+            >
+              {saving ? (
+                <>
+                  <Icono name="sync" className="animate-spin" />
+                  Guardando...
+                </>
+              ) : (
+                <>
+                  <Icono name="save" />
+                  Guardar Evaluación
+                </>
+              )}
+            </button>
+          </div>
+          
+          {/* Mensaje de estado */}
+          {saveMessage && (
+            <div className={`mt-3 p-3 rounded-xl flex items-center gap-2 ${
+              saveMessage.type === 'success' 
+                ? 'bg-[#13ec6d]/10 text-[#13ec6d]' 
+                : 'bg-red-500/10 text-red-400'
+            }`}>
+              <Icono name={saveMessage.type === 'success' ? 'check_circle' : 'error'} />
+              <span className="text-xs font-medium">{saveMessage.text}</span>
+            </div>
+          )}
+          
+          {!userId && (
+            <p className="mt-2 text-[10px] text-[#f59e0b]">
+              Inicia sesión para guardar tus evaluaciones
+            </p>
+          )}
         </div>
       )}
       

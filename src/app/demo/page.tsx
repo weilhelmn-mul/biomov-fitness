@@ -174,6 +174,7 @@ export default function DemoPage() {
 
         {/* Dashboard Component */}
         <IsometricStrengthDashboard
+          userId={userData.id}
           onIndiceChange={handleIndiceChange}
         />
 
