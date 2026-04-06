@@ -1115,8 +1115,10 @@ export default function EvaluacionFuerzaIsometrica() {
     }
     
     // Preparar datos para Supabase
+    // Usar UUID válido para modo demo
+    const demoUserId = '00000000-0000-0000-0000-000000000002'
     const evaluationData = {
-      athleteId: 'demo-user', // TODO: obtener del usuario logueado
+      athleteId: demoUserId, // UUID válido para demo
       athleteName: 'Usuario Demo',
       muscleEvaluated: muscleCodeMap[musculoSeleccionado] || musculoSeleccionado,
       side: ladoActivo === 'R' ? 'Derecho' as const : 'Izquierdo' as const,

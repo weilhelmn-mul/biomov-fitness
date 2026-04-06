@@ -36,8 +36,9 @@ export default function DemoPage() {
   const [indiceGlobal, setIndiceGlobal] = useState<IndiceGlobal | null>(null)
   const [musculosData, setMusculosData] = useState<any[]>([])
 
+  // UUID válido para el modo demo (formato UUID v4)
   const userData = {
-    id: 'demo-user-001',
+    id: '00000000-0000-0000-0000-000000000001', // UUID válido para demo
     email: 'demo@biomov.com',
     name: 'Usuario Demo'
   }

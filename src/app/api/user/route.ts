@@ -1,15 +1,18 @@
 import { NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
 
+// UUID válido para usuarios demo (formato UUID v4)
+const DEMO_USER_ID = '00000000-0000-0000-0000-000000000003'
+
 // GET - Obtener usuario actual (simulado para demo)
 export async function GET() {
   try {
-    // If Supabase is not configured, return demo user
+    // If Supabase is not configured, return demo user with valid UUID
     if (!supabase) {
       console.warn('Supabase not configured, returning demo user')
       return NextResponse.json({
         user: {
-          id: 'demo-user-id',
+          id: DEMO_USER_ID,
           email: 'demo@biomov.com',
           name: 'Carlos Mendoza',
           rol: 'admin'
@@ -26,11 +29,11 @@ export async function GET() {
       .single()
 
     if (error || !user) {
-      // If user doesn't exist, create demo user
+      // If user doesn't exist, create demo user with valid UUID
       const { data: newUser, error: createError } = await supabase
         .from('users')
         .insert({
-          id: 'demo-user-id',
+          id: DEMO_USER_ID,
           email: 'demo@biomov.com',
           name: 'Carlos Mendoza',
           rol: 'admin'
@@ -40,10 +43,10 @@ export async function GET() {
 
       if (createError) {
         console.error('Error creating demo user:', createError)
-        // Return mock user anyway
+        // Return mock user with valid UUID anyway
         return NextResponse.json({
           user: {
-            id: 'demo-user-id',
+            id: DEMO_USER_ID,
             email: 'demo@biomov.com',
             name: 'Carlos Mendoza',
             rol: 'admin'

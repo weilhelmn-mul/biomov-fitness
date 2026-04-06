@@ -57,8 +57,13 @@ export default function EvaluacionIsometricaPage() {
       const storedUser = localStorage.getItem('biomov_user')
       if (storedUser) {
         const user = JSON.parse(storedUser)
+        // Si no hay ID de usuario, redirigir a login
+        if (!user.id) {
+          router.push('/auth/login')
+          return
+        }
         setUserData({
-          id: user.id || 'demo-user',
+          id: user.id,
           email: user.email,
           name: user.nombre_completo || user.name,
           rol: user.rol || 'paciente'
@@ -241,6 +246,7 @@ export default function EvaluacionIsometricaPage() {
 
         {/* Dashboard Component */}
         <IsometricStrengthDashboard
+          userId={userData?.id}
           onIndiceChange={handleIndiceChange}
         />
 
